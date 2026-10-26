@@ -34,8 +34,8 @@ namespace Fp6
 
 @[inline] def ofFp2 (x : Fp2) : Fp6 := ⟨x, Fp2.zero, Fp2.zero⟩
 
-@[inline] def add (a b : Fp6) : Fp6 := ⟨a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2⟩
-@[inline] def sub (a b : Fp6) : Fp6 := ⟨a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2⟩
+def add (a b : Fp6) : Fp6 := ⟨a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2⟩
+def sub (a b : Fp6) : Fp6 := ⟨a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2⟩
 @[inline] def neg (a : Fp6)   : Fp6 := ⟨-a.c0, -a.c1, -a.c2⟩
 
 /-- School-book multiplication with `v³ = 1 + i`. -/

@@ -29,11 +29,11 @@ namespace Fp2
 
 @[inline] def ofFp (x : Fp) : Fp2 := ⟨x, Fp.zero⟩
 
-@[inline] def add (a b : Fp2) : Fp2 := ⟨a.c0 + b.c0, a.c1 + b.c1⟩
-@[inline] def sub (a b : Fp2) : Fp2 := ⟨a.c0 - b.c0, a.c1 - b.c1⟩
+def add (a b : Fp2) : Fp2 := ⟨a.c0 + b.c0, a.c1 + b.c1⟩
+def sub (a b : Fp2) : Fp2 := ⟨a.c0 - b.c0, a.c1 - b.c1⟩
 @[inline] def neg (a : Fp2)   : Fp2 := ⟨-a.c0, -a.c1⟩
 
-@[inline] def mul (a b : Fp2) : Fp2 :=
+def mul (a b : Fp2) : Fp2 :=
   -- (a0 + a1·i)(b0 + b1·i) = (a0·b0 − a1·b1) + (a0·b1 + a1·b0)·i
   ⟨a.c0 * b.c0 - a.c1 * b.c1, a.c0 * b.c1 + a.c1 * b.c0⟩
 
@@ -61,11 +61,13 @@ def inverse (a : Fp2) : Fp2 :=
 instance : Div Fp2 := ⟨fun a b => a * b.inverse⟩
 
 /-- Square-and-multiply by a `Nat`. -/
-partial def powNat (base : Fp2) (e : Nat) : Fp2 :=
+def powNat (base : Fp2) (e : Nat) : Fp2 :=
   if e = 0 then one
   else
     let half := powNat (base * base) (e / 2)
     if e % 2 = 1 then base * half else half
+termination_by e
+decreasing_by omega
 
 end Fp2
 

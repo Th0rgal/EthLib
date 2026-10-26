@@ -17,16 +17,16 @@ open EthLib.Cryptography.Bls
 
 /-! ## `expand_message_xmd` (RFC 9380 §5.3.1) -/
 
-private def sha256BlockSize : Nat := 64
-private def sha256OutputSize : Nat := 32
-private def oversizeDstPrefix : ByteArray :=
+def sha256BlockSize : Nat := 64
+def sha256OutputSize : Nat := 32
+def oversizeDstPrefix : ByteArray :=
   String.toUTF8 "H2C-OVERSIZE-DST-"
 
-private def i2osp (n : Nat) (len : Nat) : ByteArray :=
+def i2osp (n : Nat) (len : Nat) : ByteArray :=
   ByteArray.mk <| Array.ofFn (n := len) fun i =>
     UInt8.ofNat ((n >>> ((len - 1 - i.val) * 8)) &&& 0xff)
 
-private def strxor (a b : ByteArray) : ByteArray :=
+def strxor (a b : ByteArray) : ByteArray :=
   ByteArray.mk <| Array.ofFn (n := a.size) fun i => a[i.val]! ^^^ b[i.val]!
 
 /-- Expand `msg` into `lenInBytes` pseudo-random bytes via XMD with
@@ -35,11 +35,15 @@ shortened with SHA-256, and oversized output requests are rejected. -/
 def expandMessageXmd
     (msg : ByteArray) (dst : ByteArray) (lenInBytes : Nat)
     : Except BlsError ByteArray := do
+  if dst.size == 0 then
+    throw .expandMessageEmptyDst
   let ell := (lenInBytes + sha256OutputSize - 1) / sha256OutputSize
   if lenInBytes > 65535 then
     throw (.expandMessageOutputTooLong lenInBytes)
   if ell > 255 then
     throw (.expandMessageTooManyBlocks ell)
+  if lenInBytes == 0 then
+    return ByteArray.empty
   let dst :=
     if dst.size > 255 then
       Sha256.hash (oversizeDstPrefix ++ dst)
@@ -90,11 +94,15 @@ def hashToFieldFp2
     out := out.push ⟨c0, c1⟩
   return out
 
-/-! ## `sgn0` for Fp / Fp2 (RFC 9380 §4.1) -/
+/-! ## `sgn0` and quadratic-residue tests for Fp / Fp2 (RFC 9380 §4.1) -/
 
-private def sgn0Fp (x : Fp) : Bool := x.val % 2 == 1
+def isSquare (x : Fp) : Bool := (Fp.sqrt x).isOk
 
-private def sgn0Fp2 (x : Fp2) : Bool :=
+def isSquareFp2 (x : Fp2) : Bool := (Fp2.sqrt x).isOk
+
+def sgn0Fp (x : Fp) : Bool := x.val % 2 == 1
+
+def sgn0Fp2 (x : Fp2) : Bool :=
   let s0 := sgn0Fp x.c0
   let z0 := x.c0.isZero
   let s1 := sgn0Fp x.c1
@@ -103,16 +111,16 @@ private def sgn0Fp2 (x : Fp2) : Bool :=
 /-! ## SSWU map onto the 3-isogenous curve `E'` (RFC 9380 §6.6.3) -/
 
 /-- `Z = -(2 + I)` for the BLS12-381 G2 suite. -/
-private def Z : Fp2 := ⟨-(Fp.ofNat 2), -Fp.one⟩
+def Z : Fp2 := ⟨-(Fp.ofNat 2), -Fp.one⟩
 
 /-- `A' = 240 * I`. -/
-private def Aprime : Fp2 := ⟨Fp.zero, Fp.ofNat 240⟩
+def Aprime : Fp2 := ⟨Fp.zero, Fp.ofNat 240⟩
 
 /-- `B' = 1012 * (1 + I)`. -/
-private def Bprime : Fp2 := ⟨Fp.ofNat 1012, Fp.ofNat 1012⟩
+def Bprime : Fp2 := ⟨Fp.ofNat 1012, Fp.ofNat 1012⟩
 
 /-- Simplified SWU onto `E' : y^2 = x^3 + A'·x + B'`. -/
-private def simpleSwu (u : Fp2) : Fp2 × Fp2 :=
+def simpleSwu (u : Fp2) : Except BlsError (Fp2 × Fp2) :=
   let u2 := u * u
   let zu2 := Z * u2
   let denom := zu2 * zu2 + zu2          -- Z^2·u^4 + Z·u^2
@@ -126,15 +134,18 @@ private def simpleSwu (u : Fp2) : Fp2 × Fp2 :=
   match Fp2.sqrt gx1 with
   | .ok y =>
     let y := if sgn0Fp2 u = sgn0Fp2 y then y else -y
-    (x1, y)
+    .ok (x1, y)
   | .error _ =>
     let x2 := zu2 * x1
     let gx2 := x2 * x2 * x2 + Aprime * x2 + Bprime
     match Fp2.sqrt gx2 with
     | .ok y =>
       let y := if sgn0Fp2 u = sgn0Fp2 y then y else -y
-      (x2, y)
-    | .error _ => panic! "neither gx1 nor gx2 is a square"
+      .ok (x2, y)
+    | .error _ =>
+      -- Mathematically unreachable: Z is a non-square in Fp2, so at
+      -- least one of gx1 or gx2 = Z^3 * u^6 * gx1 is a square.
+      .error .swuNoSquareFound
 
 /-! ## 3-isogeny map `E' → E` (RFC 9380 Appendix E.3)
 
@@ -221,7 +232,7 @@ private def c1Psi2 : Fp2 :=
   let v : Fp := (Fp.powNat two ((Fp.modulus - 1) / 3)).inverse
   ⟨v, Fp.zero⟩
 
-private def psi (P : G2) : G2 :=
+def psi (P : G2) : G2 :=
   if P.z.isZero then P else
     -- Affine form for clarity; G2.add handles re-projection.
     let (x, y) := P.toAffine
@@ -229,17 +240,17 @@ private def psi (P : G2) : G2 :=
     let qy := c2Psi * frobeniusFp2 y
     ⟨qx, qy, Fp2.one⟩
 
-private def psi2 (P : G2) : G2 :=
+def psi2 (P : G2) : G2 :=
   if P.z.isZero then P else
     let (x, y) := P.toAffine
     ⟨c1Psi2 * x, -y, Fp2.one⟩
 
 /-- |x|, the absolute value of the BLS parameter (the actual parameter
 is `−|x|`; we negate the result of scalar multiplication where needed). -/
-private def blsAbsX : Nat := 0xd201000000010000
+def blsAbsX : Nat := 0xd201000000010000
 
 /-- Multiply by the negative BLS parameter (`x = −|x|`). -/
-private def mulNegX (P : G2) : G2 := G2.neg (G2.mulNat P blsAbsX)
+def mulNegX (P : G2) : G2 := G2.neg (G2.mulNat P blsAbsX)
 
 /-- Cofactor clearing for G2 per RFC 9380 G.3. -/
 def clearCofactor (P : G2) : G2 :=
@@ -253,13 +264,16 @@ def clearCofactor (P : G2) : G2 :=
   let t3 := G2.add t3 (G2.neg t1)
   G2.add t3 (G2.neg P)
 
+/-- Alias for `clearCofactor` on `G2`. -/
+abbrev clearCofactorG2 (P : G2) : G2 := clearCofactor P
+
 /-! ## Top-level pipeline -/
 
 /-- Hash a message + DST to a G2 point on BLS12-381. -/
 def hashToG2 (msg : ByteArray) (dst : ByteArray) : Except BlsError G2 := do
   let us ← hashToFieldFp2 msg dst 2
-  let (x0, y0) := simpleSwu us[0]!
-  let (x1, y1) := simpleSwu us[1]!
+  let (x0, y0) ← simpleSwu us[0]!
+  let (x1, y1) ← simpleSwu us[1]!
   let (xa, ya) := isoMapG2 x0 y0
   let (xb, yb) := isoMapG2 x1 y1
   let p0 : G2 := ⟨xa, ya, Fp2.one⟩

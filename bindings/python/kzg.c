@@ -141,14 +141,18 @@ py_blob_to_kzg_commitment(
   if (!PyArg_ParseTuple(args, "O", &blob_obj)) return NULL;
   const uint8_t* blob = parse_bytes_of_size(blob_obj, BYTES_PER_BLOB, "blob");
   if (!blob) return NULL;
-  uint8_t out[BYTES_PER_COMMITMENT];
+  uint8_t* out = (uint8_t*) PyMem_Malloc(BYTES_PER_COMMITMENT);
+  if (!out) return PyErr_NoMemory();
   lean_object* res = eth_kzg_blob_to_kzg_commitment(
     mk_bytearray(blob, BYTES_PER_BLOB));
   if (run_io_into_bytearray(res, out, BYTES_PER_COMMITMENT)) {
+    PyMem_Free(out);
     PyErr_SetString(PyExc_RuntimeError, "blob_to_kzg_commitment failed");
     return NULL;
   }
-  return PyBytes_FromStringAndSize((const char*) out, BYTES_PER_COMMITMENT);
+  PyObject* ret = PyBytes_FromStringAndSize((const char*) out, BYTES_PER_COMMITMENT);
+  PyMem_Free(out);
+  return ret;
 }
 
 PyObject*
@@ -162,15 +166,19 @@ py_compute_challenge(
   if (!blob) return NULL;
   const uint8_t* com = parse_bytes_of_size(com_obj, BYTES_PER_COMMITMENT, "commitment");
   if (!com) return NULL;
-  uint8_t out[BYTES_PER_FIELD_ELEMENT];
+  uint8_t* out = (uint8_t*) PyMem_Malloc(BYTES_PER_FIELD_ELEMENT);
+  if (!out) return PyErr_NoMemory();
   lean_object* res = eth_kzg_compute_challenge(
     mk_bytearray(blob, BYTES_PER_BLOB),
     mk_bytearray(com, BYTES_PER_COMMITMENT));
   if (run_io_into_bytearray(res, out, BYTES_PER_FIELD_ELEMENT)) {
+    PyMem_Free(out);
     PyErr_SetString(PyExc_RuntimeError, "compute_challenge failed");
     return NULL;
   }
-  return PyBytes_FromStringAndSize((const char*) out, BYTES_PER_FIELD_ELEMENT);
+  PyObject* ret = PyBytes_FromStringAndSize((const char*) out, BYTES_PER_FIELD_ELEMENT);
+  PyMem_Free(out);
+  return ret;
 }
 
 PyObject*
@@ -184,17 +192,26 @@ py_compute_kzg_proof(
   if (!blob) return NULL;
   const uint8_t* z = parse_bytes_of_size(z_obj, BYTES_PER_FIELD_ELEMENT, "z");
   if (!z) return NULL;
-  uint8_t buf[BYTES_PER_PROOF + BYTES_PER_FIELD_ELEMENT];
+  size_t buf_len = BYTES_PER_PROOF + BYTES_PER_FIELD_ELEMENT;
+  uint8_t* buf = (uint8_t*) PyMem_Malloc(buf_len);
+  if (!buf) return PyErr_NoMemory();
   lean_object* res = eth_kzg_compute_kzg_proof(
     mk_bytearray(blob, BYTES_PER_BLOB),
     mk_bytearray(z, BYTES_PER_FIELD_ELEMENT));
-  if (run_io_into_bytearray(res, buf, sizeof(buf))) {
+  if (run_io_into_bytearray(res, buf, buf_len)) {
+    PyMem_Free(buf);
     PyErr_SetString(PyExc_RuntimeError, "compute_kzg_proof failed");
     return NULL;
   }
   PyObject* proof = PyBytes_FromStringAndSize((const char*) buf, BYTES_PER_PROOF);
   PyObject* y = PyBytes_FromStringAndSize((const char*) (buf + BYTES_PER_PROOF),
                                               BYTES_PER_FIELD_ELEMENT);
+  PyMem_Free(buf);
+  if (!proof || !y) {
+    Py_XDECREF(proof);
+    Py_XDECREF(y);
+    return NULL;
+  }
   PyObject* tup = PyTuple_Pack(2, proof, y);
   Py_DECREF(proof); Py_DECREF(y);
   return tup;
@@ -239,15 +256,19 @@ py_compute_blob_kzg_proof(
   if (!blob) return NULL;
   const uint8_t* c = parse_bytes_of_size(c_obj, BYTES_PER_COMMITMENT, "commitment");
   if (!c) return NULL;
-  uint8_t out[BYTES_PER_PROOF];
+  uint8_t* out = (uint8_t*) PyMem_Malloc(BYTES_PER_PROOF);
+  if (!out) return PyErr_NoMemory();
   lean_object* res = eth_kzg_compute_blob_kzg_proof(
     mk_bytearray(blob, BYTES_PER_BLOB),
     mk_bytearray(c, BYTES_PER_COMMITMENT));
   if (run_io_into_bytearray(res, out, BYTES_PER_PROOF)) {
+    PyMem_Free(out);
     PyErr_SetString(PyExc_RuntimeError, "compute_blob_kzg_proof failed");
     return NULL;
   }
-  return PyBytes_FromStringAndSize((const char*) out, BYTES_PER_PROOF);
+  PyObject* ret = PyBytes_FromStringAndSize((const char*) out, BYTES_PER_PROOF);
+  PyMem_Free(out);
+  return ret;
 }
 
 PyObject*
@@ -331,6 +352,11 @@ py_compute_cells(
   for (size_t i = 0; i < CELLS_PER_EXT_BLOB; i++) {
     PyObject* cell = PyBytes_FromStringAndSize((const char*) (out + i * BYTES_PER_CELL),
                                                BYTES_PER_CELL);
+    if (!cell) {
+      Py_DECREF(list);
+      PyMem_Free(out);
+      return NULL;
+    }
     PyList_SET_ITEM(list, i, cell);
   }
   PyMem_Free(out);
@@ -358,12 +384,28 @@ py_compute_cells_and_kzg_proofs(
   }
   PyObject* cells = PyList_New(CELLS_PER_EXT_BLOB);
   PyObject* proofs = PyList_New(CELLS_PER_EXT_BLOB);
+  if (!cells || !proofs) {
+    Py_XDECREF(cells);
+    Py_XDECREF(proofs);
+    PyMem_Free(buf);
+    return NULL;
+  }
   for (size_t i = 0; i < CELLS_PER_EXT_BLOB; i++) {
-    PyList_SET_ITEM(cells, i,
-      PyBytes_FromStringAndSize((const char*) (buf + i * BYTES_PER_CELL), BYTES_PER_CELL));
-    PyList_SET_ITEM(proofs, i,
-      PyBytes_FromStringAndSize((const char*) (buf + CELLS_PER_EXT_BLOB * BYTES_PER_CELL
-                                              + i * BYTES_PER_PROOF), BYTES_PER_PROOF));
+    PyObject* cell = PyBytes_FromStringAndSize(
+      (const char*) (buf + i * BYTES_PER_CELL), BYTES_PER_CELL);
+    PyObject* proof = PyBytes_FromStringAndSize(
+      (const char*) (buf + CELLS_PER_EXT_BLOB * BYTES_PER_CELL + i * BYTES_PER_PROOF),
+      BYTES_PER_PROOF);
+    if (!cell || !proof) {
+      Py_XDECREF(cell);
+      Py_XDECREF(proof);
+      Py_DECREF(cells);
+      Py_DECREF(proofs);
+      PyMem_Free(buf);
+      return NULL;
+    }
+    PyList_SET_ITEM(cells, i, cell);
+    PyList_SET_ITEM(proofs, i, proof);
   }
   PyMem_Free(buf);
   PyObject* tup = PyTuple_Pack(2, cells, proofs);
@@ -382,9 +424,6 @@ py_compute_verify_cell_kzg_proof_batch_challenge(
     return NULL;
 
   Py_ssize_t n_coms, n_com_idx, n_cell_idx, n_proofs;
-  /* Declared before any goto so the cleanup label isn't bypassed
-   * (the VLA's runtime size makes goto-over-declaration illegal). */
-  uint8_t out[BYTES_PER_FIELD_ELEMENT];
   uint8_t* coms = pack_bytes_sequence(coms_obj, BYTES_PER_COMMITMENT, &n_coms, "commitment");
   if (!coms) return NULL;
   uint64_t* com_idx = pack_indices(com_idx_obj, &n_com_idx);
@@ -434,6 +473,14 @@ py_compute_verify_cell_kzg_proof_batch_challenge(
   }
   n_proofs = n_proofs_check;
 
+  uint8_t* out = (uint8_t*) PyMem_Malloc(BYTES_PER_FIELD_ELEMENT);
+  if (!out) {
+    PyMem_Free(proofs);
+    PyMem_Free(packed);
+    PyMem_Free(cell_idx); PyMem_Free(com_idx); PyMem_Free(coms);
+    return PyErr_NoMemory();
+  }
+
   lean_object* res = eth_kzg_compute_verify_cell_kzg_proof_batch_challenge(
     mk_bytearray_array(coms, n_coms, BYTES_PER_COMMITMENT),
     mk_indices_bytearray(com_idx, n_com_idx),
@@ -446,10 +493,13 @@ py_compute_verify_cell_kzg_proof_batch_challenge(
   PyMem_Free(cell_idx); PyMem_Free(com_idx); PyMem_Free(coms);
 
   if (run_io_into_bytearray(res, out, BYTES_PER_FIELD_ELEMENT)) {
+    PyMem_Free(out);
     PyErr_SetString(PyExc_RuntimeError, "compute_verify_cell_kzg_proof_batch_challenge failed");
     return NULL;
   }
-  return PyBytes_FromStringAndSize((const char*) out, BYTES_PER_FIELD_ELEMENT);
+  PyObject* ret = PyBytes_FromStringAndSize((const char*) out, BYTES_PER_FIELD_ELEMENT);
+  PyMem_Free(out);
+  return ret;
 
 fail_evals:
   Py_DECREF(fast_evals);
@@ -519,12 +569,28 @@ py_recover_cells_and_kzg_proofs(
   }
   PyObject* out_cells = PyList_New(CELLS_PER_EXT_BLOB);
   PyObject* out_proofs = PyList_New(CELLS_PER_EXT_BLOB);
+  if (!out_cells || !out_proofs) {
+    Py_XDECREF(out_cells);
+    Py_XDECREF(out_proofs);
+    PyMem_Free(buf);
+    return NULL;
+  }
   for (size_t i = 0; i < CELLS_PER_EXT_BLOB; i++) {
-    PyList_SET_ITEM(out_cells, i,
-      PyBytes_FromStringAndSize((const char*) (buf + i * BYTES_PER_CELL), BYTES_PER_CELL));
-    PyList_SET_ITEM(out_proofs, i,
-      PyBytes_FromStringAndSize((const char*) (buf + CELLS_PER_EXT_BLOB * BYTES_PER_CELL
-                                              + i * BYTES_PER_PROOF), BYTES_PER_PROOF));
+    PyObject* cell = PyBytes_FromStringAndSize(
+      (const char*) (buf + i * BYTES_PER_CELL), BYTES_PER_CELL);
+    PyObject* proof = PyBytes_FromStringAndSize(
+      (const char*) (buf + CELLS_PER_EXT_BLOB * BYTES_PER_CELL + i * BYTES_PER_PROOF),
+      BYTES_PER_PROOF);
+    if (!cell || !proof) {
+      Py_XDECREF(cell);
+      Py_XDECREF(proof);
+      Py_DECREF(out_cells);
+      Py_DECREF(out_proofs);
+      PyMem_Free(buf);
+      return NULL;
+    }
+    PyList_SET_ITEM(out_cells, i, cell);
+    PyList_SET_ITEM(out_proofs, i, proof);
   }
   PyMem_Free(buf);
   PyObject* tup = PyTuple_Pack(2, out_cells, out_proofs);

@@ -151,6 +151,109 @@ theorem fromBytesBE_toBytesBE (x : Fp) : Fp.fromBytesBE x.toBytesBE = .ok x := b
   apply Fin.ext
   exact bytesBEToNat_toBytesBE x
 
+/-! ## Converse byte recovery (`toBytesBE_fromBytesBE`) -/
+
+private theorem shiftLeft_eight_or (a u : Nat) (hu : u < 256) :
+    (a <<< 8) ||| u = a * 256 + u := by
+  have h28 : (2 : Nat) ^ 8 = 256 := by decide
+  have h1 : ((a <<< 8) ||| u) % 2 ^ 8 = u := by
+    rw [Nat.or_mod_two_pow, Nat.shiftLeft_eq, Nat.mul_mod_left,
+      Nat.mod_eq_of_lt (h28 ▸ hu), Nat.zero_or]
+  have h2 : ((a <<< 8) ||| u) / 2 ^ 8 = a := by
+    rw [Nat.or_div_two_pow, Nat.shiftLeft_eq,
+      Nat.mul_div_cancel a (Nat.two_pow_pos 8),
+      Nat.div_eq_of_lt (h28 ▸ hu), Nat.or_zero]
+  have h3 := Nat.div_add_mod ((a <<< 8) ||| u) (2 ^ 8)
+  rw [h1, h2, h28] at h3
+  omega
+
+private theorem bytesBEToNatAux_linear (acc : Nat) (l : List UInt8) :
+    Kzg.bytesBEToNatAux acc l = acc * 256 ^ l.length + Kzg.bytesBEToNatAux 0 l := by
+  induction l generalizing acc with
+  | nil => simp [Kzg.bytesBEToNatAux]
+  | cons u rest ih =>
+    rw [Kzg.bytesBEToNatAux, ih, shiftLeft_eight_or acc u.toNat u.toNat_lt_size,
+      Kzg.bytesBEToNatAux, Nat.zero_shiftLeft, Nat.zero_or, ih u.toNat,
+      List.length_cons, Nat.pow_succ]
+    generalize (256 : Nat) ^ rest.length = P
+    rw [Nat.add_mul, Nat.mul_comm P 256, ← Nat.mul_assoc, Nat.add_assoc]
+
+private theorem bytesBEToNatAux_lt (l : List UInt8) :
+    Kzg.bytesBEToNatAux 0 l < 256 ^ l.length := by
+  have := Kzg.bytesBEToNat_lt ⟨l.toArray⟩
+  simpa [Kzg.bytesBEToNat, ByteArray.size] using this
+
+private theorem bytesBEToNatAux_cons (u : UInt8) (r : List UInt8) :
+    Kzg.bytesBEToNatAux 0 (u :: r) = u.toNat * 256 ^ r.length + Kzg.bytesBEToNatAux 0 r := by
+  rw [Kzg.bytesBEToNatAux, Nat.zero_shiftLeft, Nat.zero_or, bytesBEToNatAux_linear]
+
+private theorem bytesBEToNatAux_inj {l₁ l₂ : List UInt8}
+    (hlen : l₁.length = l₂.length)
+    (h : Kzg.bytesBEToNatAux 0 l₁ = Kzg.bytesBEToNatAux 0 l₂) :
+    l₁ = l₂ := by
+  induction l₁ generalizing l₂ with
+  | nil =>
+    cases l₂ with
+    | nil => rfl
+    | cons _ _ => cases hlen
+  | cons u₁ r₁ ih =>
+    cases l₂ with
+    | nil => cases hlen
+    | cons u₂ r₂ =>
+      have hlen' : r₁.length = r₂.length := Nat.succ.inj hlen
+      rw [bytesBEToNatAux_cons, bytesBEToNatAux_cons, ← hlen'] at h
+      have hr₁ : Kzg.bytesBEToNatAux 0 r₁ < 256 ^ r₁.length := bytesBEToNatAux_lt r₁
+      have hr₂ : Kzg.bytesBEToNatAux 0 r₂ < 256 ^ r₁.length :=
+        hlen' ▸ bytesBEToNatAux_lt r₂
+      have hu : u₁.toNat = u₂.toNat := by
+        rcases Nat.lt_trichotomy u₁.toNat u₂.toNat with hlt | heq | hgt
+        · have hle := Nat.mul_le_mul_right (256 ^ r₁.length) hlt
+          rw [Nat.succ_mul] at hle
+          omega
+        · exact heq
+        · have hle := Nat.mul_le_mul_right (256 ^ r₁.length) hgt
+          rw [Nat.succ_mul] at hle
+          omega
+      rw [hu] at h
+      have hr_eq : Kzg.bytesBEToNatAux 0 r₁ = Kzg.bytesBEToNatAux 0 r₂ := by omega
+      rw [UInt8.ext hu, ih hlen' hr_eq]
+
+private theorem kzg_bytesBEToNat_inj {a b : ByteArray} (hsz : a.size = b.size)
+    (h : Kzg.bytesBEToNat a = Kzg.bytesBEToNat b) : a = b := by
+  have hlen : a.data.toList.length = b.data.toList.length := by
+    rw [Array.length_toList, Array.length_toList]
+    exact hsz
+  have hlist := bytesBEToNatAux_inj hlen h
+  exact ByteArray.ext (Array.ext' hlist)
+
+/-- Encoding a decoded `ByteArray` at its own length recovers the original bytes. -/
+theorem _root_.EthLib.Cryptography.Kzg.intToBytesBE_bytesBEToNat (b : ByteArray) :
+    Kzg.intToBytesBE (Kzg.bytesBEToNat b) b.size = b :=
+  kzg_bytesBEToNat_inj Array.size_ofFn
+    (Kzg.bytesBEToNat_intToBytesBE_of_lt (Kzg.bytesBEToNat_lt b))
+
+/-- A successful `Fp.fromBytesBE` is inverted by `Fp.toBytesBE` (canonical encoding). -/
+theorem toBytesBE_fromBytesBE {b : ByteArray} {x : Fp}
+    (h : Fp.fromBytesBE b = .ok x) : Fp.toBytesBE x = b := by
+  rw [Fp.fromBytesBE] at h
+  split at h
+  · cases h
+  · rename_i hsz
+    have hsz48 : b.size = 48 := by omega
+    dsimp only at h
+    split at h
+    · rename_i hlt
+      cases h
+      have heq : Fp.toBytesBE ⟨Fp.bytesBEToNat b, hlt⟩
+          = Kzg.intToBytesBE (Kzg.bytesBEToNat b) b.size := by
+        show Kzg.intToBytesBE (Fp.bytesBEToNat b) 48
+          = Kzg.intToBytesBE (Kzg.bytesBEToNat b) b.size
+        rw [hsz48, bytesBEToNat_eq_list, ← kzgAux_eq_foldl]
+        rfl
+      rw [heq]
+      exact Kzg.intToBytesBE_bytesBEToNat b
+    · cases h
+
 
 end EthLib.Cryptography.Bls.Fp
 
@@ -312,11 +415,9 @@ private theorem compress_noninf {p : G1} (hinf : ¬ p.isInfinity = true)
   rfl
 
 /-- The infinity round-trip is a closed 48-byte decidable computation
-that the kernel will not reduce through (`Array.replicate` and the
-`tailAllZero` loop), so it is discharged by `native_decide`. This is a
-finite check, not a mathematical assumption. -/
+checked in the kernel (`decide +kernel`). -/
 private theorem uncompress_infinityBytes :
-    uncompress infinityBytes = .ok zero := by native_decide
+    uncompress infinityBytes = .ok zero := by decide +kernel
 
 /-- Sign selection in `uncompress` (a `Prop`-equality condition)
 recovers `y` from `±y` and the stored sign bit. -/
@@ -348,6 +449,38 @@ private theorem uncompress_of_facts {xa ya yPos : Fp} {cb : ByteArray}
     hmaskeq, Fp.fromBytesBE_toBytesBE]
   simp only [hsqrt]
   rw [sign_recovery' hysq hsg]
+
+private theorem b0_pos_c (B0 : UInt8) :
+    (B0 ||| 0x80 ||| 0x20) &&& 0x80 ≠ 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i; decide
+
+private theorem b0_pos_i (B0 : UInt8) (hb0 : B0 < 0x20) :
+    (B0 ||| 0x80 ||| 0x20) &&& 0x40 = 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
+
+private theorem b0_pos_s (B0 : UInt8) :
+    (B0 ||| 0x80 ||| 0x20) &&& 0x20 ≠ 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i; decide
+
+private theorem b0_pos_m (B0 : UInt8) (hb0 : B0 < 0x20) :
+    (B0 ||| 0x80 ||| 0x20) &&& 0x1f = B0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
+
+private theorem b0_neg_c (B0 : UInt8) :
+    (B0 ||| 0x80) &&& 0x80 ≠ 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i; decide
+
+private theorem b0_neg_i (B0 : UInt8) (hb0 : B0 < 0x20) :
+    (B0 ||| 0x80) &&& 0x40 = 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
+
+private theorem b0_neg_s (B0 : UInt8) (hb0 : B0 < 0x20) :
+    (B0 ||| 0x80) &&& 0x20 = 0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
+
+private theorem b0_neg_m (B0 : UInt8) (hb0 : B0 < 0x20) :
+    (B0 ||| 0x80) &&& 0x1f = B0 := by
+  rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
 
 /-- **Compression round-trip.** For any valid point `p`, `compress`
 followed by `uncompress` succeeds and returns a point `q` denoting the
@@ -396,30 +529,302 @@ theorem uncompress_compress {p : G1} (h : Valid p) :
           rw [hcp]; dsimp only
           rw [if_pos hs, ba_get!_set!_self _ _ (by rw [ba_size_set!, hsz48]; decide),
             ba_get!_set!_self _ _ (by rw [hsz48]; decide)]
-        refine uncompress_of_facts hsize (by rw [hhead]; bv_decide)
-          (by rw [hhead]; bv_decide) ?_ ?_ hsqrt hysq
+        refine uncompress_of_facts hsize (by rw [hhead]; exact b0_pos_c B0)
+          (by rw [hhead]; exact b0_pos_i B0 hb0) ?_ ?_ hsqrt hysq
         · rw [hhead]
-          exact ⟨fun _ => hs, fun _ => by bv_decide⟩
+          exact ⟨fun _ => hs, fun _ => b0_pos_s B0⟩
         · refine ba_ext (by rw [ba_size_set!, hsize, hsz48]) (fun i hi' => ?_)
           rw [ba_size_set!, hsize] at hi'
           by_cases hi0 : i = 0
           · subst hi0
-            rw [ba_get!_set!_self _ _ (by rw [hsize]; decide), hhead, ← hB0]; bv_decide
+            rw [ba_get!_set!_self _ _ (by rw [hsize]; decide), hhead, ← hB0]
+            exact b0_pos_m B0 hb0
           · rw [ba_get!_set!_ne _ _ hi0, hother i hi0]
       · have hhead : (compress p).get! 0 = B0 ||| 0x80 := by
           rw [hcp]; dsimp only
           rw [if_neg hs, ba_get!_set!_self _ _ (by rw [hsz48]; decide)]
-        refine uncompress_of_facts hsize (by rw [hhead]; bv_decide)
-          (by rw [hhead]; bv_decide) ?_ ?_ hsqrt hysq
+        refine uncompress_of_facts hsize (by rw [hhead]; exact b0_neg_c B0)
+          (by rw [hhead]; exact b0_neg_i B0 hb0) ?_ ?_ hsqrt hysq
         · rw [hhead]
-          exact ⟨fun hne => absurd (by bv_decide) hne, fun hh => absurd hh hs⟩
+          exact ⟨fun hne => absurd (b0_neg_s B0 hb0) hne, fun hh => absurd hh hs⟩
         · refine ba_ext (by rw [ba_size_set!, hsize, hsz48]) (fun i hi' => ?_)
           rw [ba_size_set!, hsize] at hi'
           by_cases hi0 : i = 0
           · subst hi0
-            rw [ba_get!_set!_self _ _ (by rw [hsize]; decide), hhead, ← hB0]; bv_decide
+            rw [ba_get!_set!_self _ _ (by rw [hsize]; decide), hhead, ← hB0]
+            exact b0_neg_m B0 hb0
           · rw [ba_get!_set!_ne _ _ hi0, hother i hi0]
     · have := toPoint_affine_normalize (p := p) hinf
       rw [hpa] at this; exact this
+
+/-! ## Converse round-trip (`uncompress_valid` and `compress_uncompress`) -/
+
+set_option maxRecDepth 8000 in
+set_option exponentiation.threshold 512 in
+/-- `x³ + 4 = 0` has no solution in `Fp`, as `-4` is not a cube modulo `p`
+(`(-4)^((p - 1) / 3) ≠ 1` in `Fp`). Consequently every curve point over
+`Fp` has `y ≠ 0`. -/
+private theorem cube_add_four_ne_zero_zmod (x : ZMod Fp.modulus) :
+    x * x * x + 4 ≠ 0 := by
+  intro h
+  have h3 : x ^ 3 = ((Fp.modulus - 4 : Nat) : ZMod Fp.modulus) := by
+    have h4 : (-4 : ZMod Fp.modulus) = ((Fp.modulus - 4 : Nat) : ZMod Fp.modulus) := by decide
+    rw [← h4]
+    linear_combination h
+  have hx : x ≠ 0 := by
+    intro hx0
+    rw [hx0] at h
+    revert h; decide
+  have hfermat : x ^ (Fp.modulus - 1) = 1 :=
+    ZMod.pow_card_sub_one_eq_one hx
+  rw [show Fp.modulus - 1 = 3 * ((Fp.modulus - 1) / 3) by decide,
+    pow_mul, h3] at hfermat
+  exact PowMod.natCast_pow_div_ne_one Fp.modulus 384 (Fp.modulus - 4) 3
+    (by decide) (by decide) hfermat
+
+private theorem cube_add_four_ne_zero (x : Fp) :
+    (x : ZMod Fp.modulus) * x * x + Fp.ofNat 4 ≠ 0 :=
+  cube_add_four_ne_zero_zmod x
+
+private theorem valid_eq_zmod {x y : ZMod Fp.modulus} (h : y * y = x * x * x + 4) :
+    y ^ 2 + 0 * x * y * 1 + 0 * y * 1 ^ 3 - (x ^ 3 + 0 * x ^ 2 * 1 ^ 2 + 0 * x * 1 ^ 4 + 4 * 1 ^ 6) = 0 := by
+  linear_combination h
+
+private theorem dy_ne_zero_zmod {x y : ZMod Fp.modulus} (h : y * y = x * x * x + 4) :
+    2 * y + 0 * x * 1 + 0 * 1 ^ 3 ≠ 0 := by
+  intro hdy
+  have hy2 : y * y ≠ 0 := by
+    rw [h]
+    exact cube_add_four_ne_zero_zmod x
+  have hy : y ≠ 0 := fun hy0 => hy2 (by rw [hy0, mul_zero])
+  have h2 : (2 : ZMod Fp.modulus) ≠ 0 := by decide
+  have hdy' : (2 : ZMod Fp.modulus) * y = 0 := by linear_combination hdy
+  exact mul_ne_zero h2 hy hdy'
+
+/-- Any affine pair `(x, y)` satisfying `y² = x³ + 4` yields a valid
+(nonsingular) `z = 1` Jacobian representative. -/
+private theorem valid_of_affine_eq {x y : Fp}
+    (h : (y : ZMod Fp.modulus) * y = x * x * x + Fp.ofNat 4) :
+    Valid ⟨x, y, Fp.one⟩ := by
+  show curve.Nonsingular (rep ⟨x, y, Fp.one⟩)
+  rw [nonsingular_iff, equation_iff]
+  simp only [show curve.a₁ = 0 from rfl, show curve.a₂ = 0 from rfl,
+    show curve.a₃ = 0 from rfl, show curve.a₄ = 0 from rfl,
+    show curve.a₆ = (4 : ZMod Fp.modulus) from rfl,
+    rep_x, rep_y, rep_z, show (Fp.one : ZMod Fp.modulus) = 1 from rfl]
+  exact ⟨valid_eq_zmod h, Or.inr (Or.inl (dy_ne_zero_zmod h))⟩
+
+private theorem neg_sq_zmod (y : ZMod Fp.modulus) : (-y) * (-y) = y * y := by ring
+
+private theorem sq_select {yPos : Fp} {P : Prop} [Decidable P] :
+    (((if (Fp.signBit yPos = true) = P then yPos else -yPos : Fp) : ZMod Fp.modulus) *
+      (if (Fp.signBit yPos = true) = P then yPos else -yPos : Fp)) =
+      (yPos : ZMod Fp.modulus) * yPos := by
+  split
+  · rfl
+  · exact neg_sq_zmod yPos
+
+private theorem signBit_select {yPos : Fp} (hypos : yPos ≠ 0)
+    {P : Prop} [Decidable P] :
+    Fp.signBit (if (Fp.signBit yPos = true) = P then yPos else -yPos)
+      = decide P := by
+  by_cases hP : P <;> by_cases hs : Fp.signBit yPos = true
+  · rw [if_pos (by simp [hP, hs]), hs, decide_eq_true hP]
+  · rw [if_neg (by simp [hP, hs]), signBit_neg hypos,
+      Bool.eq_false_iff.mpr hs, Bool.not_false, decide_eq_true hP]
+  · rw [if_neg (by simp [hP, hs]), signBit_neg hypos, hs,
+      Bool.not_true, decide_eq_false hP]
+  · rw [if_pos (by simp [hP, hs]), Bool.eq_false_iff.mpr hs, decide_eq_false hP]
+
+private theorem foldl_allZero (b : ByteArray) (s n : Nat) (init : Bool)
+    (h : (List.range' s n).foldl
+      (fun ok i => if b.get! i ≠ 0 then false else ok) init = true) :
+    init = true ∧ ∀ i, s ≤ i → i < s + n → b.get! i = 0 := by
+  induction n generalizing s init with
+  | zero => exact ⟨h, fun i h1 h2 => by omega⟩
+  | succ n ih =>
+    rw [List.range'_succ, List.foldl_cons] at h
+    obtain ⟨hinit, hrest⟩ := ih (s + 1) _ h
+    have hs : b.get! s = 0 := by
+      by_contra hne
+      rw [if_pos hne] at hinit
+      cases hinit
+    refine ⟨by rwa [if_neg (not_not.mpr hs)] at hinit, fun i h1 h2 => ?_⟩
+    rcases Nat.eq_or_lt_of_le h1 with rfl | hlt
+    · exact hs
+    · exact hrest i hlt (by omega)
+
+open EthLib.Cryptography.IdLoops in
+private theorem tailAllZero_ok (b : ByteArray)
+    (h : (Id.run do
+      let mut ok := true
+      for i in [1 : b.size] do
+        if b.get! i ≠ 0 then ok := false
+      return ok) = true) :
+    ∀ i, 1 ≤ i → i < b.size → b.get! i = 0 := by
+  dsimp only [Id.run, id_pure, id_bind] at h
+  rw [Std.Legacy.Range.forIn_eq_forIn_range'] at h
+  have hbody : (fun (i : Nat) (ok : Bool) =>
+      (if b.get! i ≠ 0 then ForInStep.yield false
+        else ForInStep.yield ok : Id (ForInStep Bool)))
+      = fun i ok => ForInStep.yield (if b.get! i ≠ 0 then false else ok) := by
+    funext i ok; split <;> rfl
+  change (forIn (m := Id) (List.range' 1 ([1 : b.size].size) 1) true
+      (fun i ok => if b.get! i ≠ 0 then ForInStep.yield false else ForInStep.yield ok)) = true at h
+  rw [hbody, forIn_list_yield] at h
+  have hsz : [1 : b.size].size = b.size - 1 := by
+    simp [Std.Legacy.Range.size]
+  rw [hsz] at h
+  intro i hi1 hi2
+  exact (foldl_allZero b 1 (b.size - 1) true h).2 i hi1 (by omega)
+
+private theorem infinityBytes_get!_pos (i : Fin 48) (hi : 1 ≤ i.val) :
+    infinityBytes.get! i.val = 0 := by
+  revert hi i; decide
+
+private theorem toAffine_of_z_one (x y : Fp) :
+    (⟨x, y, Fp.one⟩ : G1).toAffine = (x, y) := by
+  unfold toAffine
+  rw [if_neg (by decide : ¬ Fp.one.isZero = true)]
+  have hinv : Fp.one.inverse = (1 : Fp) := by
+    have h := z_mul_inverse (p := ⟨Fp.zero, Fp.zero, Fp.one⟩) (by decide)
+    change (1 : Fp) * Fp.one.inverse = (1 : Fp) at h
+    rwa [Fin.one_mul] at h
+  dsimp only
+  rw [hinv, Fin.mul_one, Fin.mul_one, Fin.mul_one, Fin.mul_one]
+
+private theorem ba_set!_set!_same (b : ByteArray) (j : Nat) (u v : UInt8) :
+    (b.set! j u).set! j v = b.set! j v := by
+  refine ba_ext (by rw [ba_size_set!, ba_size_set!, ba_size_set!]) (fun i hi => ?_)
+  rw [ba_size_set!, ba_size_set!] at hi
+  by_cases hij : i = j
+  · subst hij
+    rw [ba_get!_set!_self _ _ (by rw [ba_size_set!]; exact hi),
+      ba_get!_set!_self _ _ hi]
+  · rw [ba_get!_set!_ne _ _ hij, ba_get!_set!_ne _ _ hij, ba_get!_set!_ne _ _ hij]
+
+private theorem ba_set!_get!_self (b : ByteArray) {j : Nat} (hj : j < b.size) :
+    b.set! j (b.get! j) = b := by
+  refine ba_ext (ba_size_set! b j _) (fun i hi => ?_)
+  rw [ba_size_set!] at hi
+  by_cases hij : i = j
+  · subst hij; exact ba_get!_set!_self b _ hj
+  · exact ba_get!_set!_ne b _ hij
+
+private theorem head_reconstruct (head : UInt8)
+    (hc : (head &&& 0x80) ≠ 0) (hi : (head &&& 0x40) = 0) :
+    (if (head &&& 0x20) ≠ 0 then (head &&& 0x1f) ||| 0x80 ||| 0x20
+     else (head &&& 0x1f) ||| 0x80) = head := by
+  rcases head with ⟨⟨i⟩⟩; revert i hc hi; decide
+
+/-- Any point returned by `G1.uncompress` is a valid (nonsingular) curve point. -/
+theorem uncompress_valid {b : ByteArray} {q : G1}
+    (h : G1.uncompress b = .ok q) : Valid q := by
+  rw [uncompress] at h
+  split at h
+  · cases h
+  · dsimp only at h
+    split at h
+    · cases h
+    · split at h
+      · split at h
+        · cases h
+        · cases h
+          exact valid_zero
+      · split at h
+        · cases h
+        · rename_i x hx
+          split at h
+          · cases h
+          · rename_i yPos hsqrt
+            cases h
+            apply valid_of_affine_eq
+            rw [sq_select]
+            exact Fp.sqrt_ok hsqrt
+
+private theorem zero_eq_of_sq_eq {x y : ZMod Fp.modulus} (hy0 : y = 0)
+    (hsq : y * y = x * x * x + 4) : x * x * x + 4 = 0 := by
+  rw [hy0] at hsq
+  linear_combination -hsq
+
+private theorem bool_eq_true_of_not_eq_false {ok : Bool} (h : (!ok) = false) :
+    ok = true := by
+  cases ok <;> first | rfl | contradiction
+
+/-- **Canonical decompression round-trip.** Re-compressing any point
+decoded by `G1.uncompress` yields the exact 48-byte input buffer. -/
+theorem compress_uncompress {b : ByteArray} {q : G1}
+    (h : G1.uncompress b = .ok q) : G1.compress q = b := by
+  rw [uncompress] at h
+  split at h
+  · cases h
+  · rename_i hsz
+    have hsz48 : b.size = 48 := by omega
+    dsimp only at h
+    split at h
+    · cases h
+    · rename_i hcomp
+      have hc : (b.get! 0 &&& 0x80) ≠ 0 := by
+        by_contra h0
+        exact hcomp (by simp [h0])
+      split at h
+      · split at h
+        · cases h
+        · rename_i hflags
+          cases h
+          rw [compress_inf rfl]
+          simp only [Bool.or_eq_true, not_or, Bool.not_eq_true] at hflags
+          obtain ⟨⟨_, hhead⟩, htail⟩ := hflags
+          have hhead0 : b.get! 0 = 0xc0 := Classical.not_not.mp (of_decide_eq_false hhead)
+          have htail0 : ∀ i, 1 ≤ i → i < b.size → b.get! i = 0 :=
+            tailAllZero_ok b (bool_eq_true_of_not_eq_false htail)
+          refine ba_ext (by rw [hsz48]; decide) (fun i hi => ?_)
+          have hi48 : i < 48 := by simpa [show infinityBytes.size = 48 by decide] using hi
+          by_cases hi0 : i = 0
+          · subst hi0
+            rw [hhead0]
+            decide
+          · have hi1 : 1 ≤ i := Nat.pos_of_ne_zero hi0
+            have hib : i < b.size := by rw [hsz48]; exact hi48
+            rw [infinityBytes_get!_pos ⟨i, hi48⟩ hi1, htail0 i hi1 hib]
+      · rename_i hinf_flag
+        have hi : (b.get! 0 &&& 0x40) = 0 := not_ne_iff.mp hinf_flag
+        split at h
+        · cases h
+        · rename_i x hx
+          split at h
+          · cases h
+          · rename_i yPos hsqrt
+            cases h
+            set y : Fp :=
+              if (Fp.signBit yPos = true) = ((b.get! 0 &&& 0x20) ≠ 0) then yPos else -yPos
+            have hqinf : ¬ (⟨x, y, Fp.one⟩ : G1).isInfinity = true := by
+              change ¬ Fp.one.isZero = true
+              decide
+            have hpa : (⟨x, y, Fp.one⟩ : G1).toAffine = (x, y) := toAffine_of_z_one x y
+            rw [compress_noninf hqinf hpa]
+            dsimp only
+            have hxbytes : Fp.toBytesBE x = b.set! 0 (b.get! 0 &&& 0x1f) :=
+              Fp.toBytesBE_fromBytesBE hx
+            have hypos : yPos ≠ 0 := by
+              intro hy0
+              exact cube_add_four_ne_zero x (zero_eq_of_sq_eq hy0 (Fp.sqrt_ok hsqrt))
+            have hsign : Fp.signBit y = decide ((b.get! 0 &&& 0x20) ≠ 0) :=
+              signBit_select hypos
+            have h0lt : 0 < b.size := by omega
+            have hbase :
+                (Fp.toBytesBE x).set! 0 ((Fp.toBytesBE x).get! 0 ||| 0x80) =
+                  b.set! 0 ((b.get! 0 &&& 0x1f) ||| 0x80) := by
+              rw [hxbytes, ba_get!_set!_self b _ h0lt, ba_set!_set!_same]
+            by_cases hs : (b.get! 0 &&& 0x20) ≠ 0
+            · have hsy : Fp.signBit y = true := by rw [hsign, decide_eq_true hs]
+              have hrec := head_reconstruct (b.get! 0) hc hi
+              rw [if_pos hs] at hrec
+              rw [if_pos hsy, hbase, ba_get!_set!_self b _ h0lt,
+                ba_set!_set!_same, hrec, ba_set!_get!_self b h0lt]
+            · have hsy : ¬ Fp.signBit y = true := by rw [hsign, decide_eq_false hs]; decide
+              have hrec := head_reconstruct (b.get! 0) hc hi
+              rw [if_neg hs] at hrec
+              rw [if_neg hsy, hbase, hrec, ba_set!_get!_self b h0lt]
 
 end EthLib.Cryptography.Bls.G1

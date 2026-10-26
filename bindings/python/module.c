@@ -23,52 +23,52 @@ size_t CELLS_PER_EXT_BLOB;
 
 extern uint64_t
 eth_bls_const_bytes_per_pubkey(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_bls_const_bytes_per_signature(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_bytes_per_field_element(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_bytes_per_commitment(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_bytes_per_proof(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_field_elements_per_blob(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_bytes_per_blob(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_field_elements_per_cell(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_bytes_per_cell(
-  uint8_t unit
+  lean_object* unit
 );
 
 extern uint64_t
 eth_kzg_const_cells_per_ext_blob(
-  uint8_t unit
+  lean_object* unit
 );
 
 /* ---- Lean externs: runtime + module init ----------------------------- */
@@ -276,16 +276,16 @@ PyInit__native(void) {
     lean_io_mark_end_initialization();
 
     /* Pull the spec-preset sizes out of the linked Lean static archive */
-    BYTES_PER_PUBKEY        = (size_t) eth_bls_const_bytes_per_pubkey(0);
-    BYTES_PER_SIGNATURE     = (size_t) eth_bls_const_bytes_per_signature(0);
-    BYTES_PER_FIELD_ELEMENT = (size_t) eth_kzg_const_bytes_per_field_element(0);
-    BYTES_PER_COMMITMENT    = (size_t) eth_kzg_const_bytes_per_commitment(0);
-    BYTES_PER_PROOF         = (size_t) eth_kzg_const_bytes_per_proof(0);
-    FIELD_ELEMENTS_PER_BLOB = (size_t) eth_kzg_const_field_elements_per_blob(0);
-    BYTES_PER_BLOB          = (size_t) eth_kzg_const_bytes_per_blob(0);
-    FIELD_ELEMENTS_PER_CELL = (size_t) eth_kzg_const_field_elements_per_cell(0);
-    BYTES_PER_CELL          = (size_t) eth_kzg_const_bytes_per_cell(0);
-    CELLS_PER_EXT_BLOB      = (size_t) eth_kzg_const_cells_per_ext_blob(0);
+    BYTES_PER_PUBKEY        = (size_t) eth_bls_const_bytes_per_pubkey(lean_box(0));
+    BYTES_PER_SIGNATURE     = (size_t) eth_bls_const_bytes_per_signature(lean_box(0));
+    BYTES_PER_FIELD_ELEMENT = (size_t) eth_kzg_const_bytes_per_field_element(lean_box(0));
+    BYTES_PER_COMMITMENT    = (size_t) eth_kzg_const_bytes_per_commitment(lean_box(0));
+    BYTES_PER_PROOF         = (size_t) eth_kzg_const_bytes_per_proof(lean_box(0));
+    FIELD_ELEMENTS_PER_BLOB = (size_t) eth_kzg_const_field_elements_per_blob(lean_box(0));
+    BYTES_PER_BLOB          = (size_t) eth_kzg_const_bytes_per_blob(lean_box(0));
+    FIELD_ELEMENTS_PER_CELL = (size_t) eth_kzg_const_field_elements_per_cell(lean_box(0));
+    BYTES_PER_CELL          = (size_t) eth_kzg_const_bytes_per_cell(lean_box(0));
+    CELLS_PER_EXT_BLOB      = (size_t) eth_kzg_const_cells_per_ext_blob(lean_box(0));
 
     initialized = 1;
   }

@@ -149,3 +149,29 @@ def test_all_cells() -> None:
           cell_indices=list(range(n)),
           cosets_evals=[_ce(cells[i]) for i in range(n)],
           proofs=list(proofs), valid=True)
+
+
+def test_invalid_mismatched_lengths() -> None:
+    cells, proofs = F.cached_cells_and_proofs(F.VALID_BLOBS[0])
+    com = F.cached_commitment(F.VALID_BLOBS[0])
+    _emit(f"{HANDLER}_case_invalid_mismatched_lengths",
+          commitments=[com], commitment_indices=[0, 0], cell_indices=[0],
+          cosets_evals=[_ce(cells[0])], proofs=[proofs[0]], valid=False)
+
+
+def test_invalid_commitment_index_out_of_bounds() -> None:
+    cells, proofs = F.cached_cells_and_proofs(F.VALID_BLOBS[0])
+    com = F.cached_commitment(F.VALID_BLOBS[0])
+    _emit(f"{HANDLER}_case_invalid_commitment_index_out_of_bounds",
+          commitments=[com], commitment_indices=[1], cell_indices=[0],
+          cosets_evals=[_ce(cells[0])], proofs=[proofs[0]], valid=False)
+
+
+def test_invalid_cell_index_out_of_bounds() -> None:
+    cells, proofs = F.cached_cells_and_proofs(F.VALID_BLOBS[0])
+    com = F.cached_commitment(F.VALID_BLOBS[0])
+    _emit(f"{HANDLER}_case_invalid_cell_index_out_of_bounds",
+          commitments=[com], commitment_indices=[0],
+          cell_indices=[kzg.CELLS_PER_EXT_BLOB],
+          cosets_evals=[_ce(cells[0])], proofs=[proofs[0]], valid=False)
+

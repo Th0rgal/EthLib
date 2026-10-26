@@ -32,15 +32,22 @@ py_eth_aggregate_pubkeys(
   uint8_t* pks = pack_bytes_sequence(pubkeys_obj, BYTES_PER_PUBKEY, &n, "pubkey");
   if (!pks) return NULL;
 
-  uint8_t out[BYTES_PER_PUBKEY];
+  uint8_t* out = (uint8_t*) PyMem_Malloc(BYTES_PER_PUBKEY);
+  if (!out) {
+    PyMem_Free(pks);
+    return PyErr_NoMemory();
+  }
   lean_object* res = eth_bls_aggregate_pubkeys(
     mk_bytearray_array(pks, n, BYTES_PER_PUBKEY));
   PyMem_Free(pks);
   if (run_io_into_bytearray(res, out, BYTES_PER_PUBKEY)) {
+    PyMem_Free(out);
     PyErr_SetString(PyExc_RuntimeError, "eth_aggregate_pubkeys failed");
     return NULL;
   }
-  return PyBytes_FromStringAndSize((const char*) out, BYTES_PER_PUBKEY);
+  PyObject* ret = PyBytes_FromStringAndSize((const char*) out, BYTES_PER_PUBKEY);
+  PyMem_Free(out);
+  return ret;
 }
 
 PyObject*
@@ -60,13 +67,7 @@ py_eth_fast_aggregate_verify(
   }
   Py_ssize_t n;
   uint8_t* pks = pack_bytes_sequence(pubkeys_obj, BYTES_PER_PUBKEY, &n, "pubkey");
-  if (!pks && PyErr_Occurred()) return NULL;
-  /* `pack_bytes_sequence` returns NULL with no error on an empty sequence. */
-  if (!pks) {
-    pks = (uint8_t*) PyMem_Malloc(1);
-    if (!pks) return PyErr_NoMemory();
-    n = 0;
-  }
+  if (!pks) return NULL;
 
   Py_ssize_t msg_len = PyBytes_GET_SIZE(msg_obj);
   Py_ssize_t sig_len = PyBytes_GET_SIZE(sig_obj);

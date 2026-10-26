@@ -1,5 +1,6 @@
 import EthLib.Cryptography.Kzg.Recovery
 import EthLib.Cryptography.Proofs.Kzg.Fft
+import EthLib.Cryptography.Proofs.Kzg.Polynomials
 
 /-!
 # Proofs: `Recovery`
@@ -33,6 +34,14 @@ private theorem except_bind_eq_ok {ε α β : Type _} {x : Except ε α}
   | error e => exact absurd h (by simp [Bind.bind, Except.bind])
   | ok a => exact ⟨a, rfl, by simpa [Bind.bind, Except.bind] using h⟩
 
+/-- `constructVanishingPolynomial` rejects inputs where all cells are missing. -/
+theorem constructVanishingPolynomial_tooManyMissingCells
+    {missingCellIndices : Array CellIndex}
+    (h : missingCellIndices.size ≥ CELLS_PER_EXT_BLOB) :
+    constructVanishingPolynomial missingCellIndices =
+      .error .tooManyMissingCells := by
+  simp [constructVanishingPolynomial, h, Bind.bind, Except.bind]
+
 /-- The extended vanishing polynomial spans the full extended domain. -/
 theorem size_constructVanishingPolynomial
     {missingCellIndices : Array CellIndex} {p : PolynomialCoeff}
@@ -45,6 +54,106 @@ theorem size_constructVanishingPolynomial
   rw [size_foldl_of_size_step]
   · simp
   · exact fun acc b => Array.size_setIfInBounds
+
+private theorem getElem!_set!_self (arr : Array Fr) (i : Nat) (v : Fr)
+    (hi : i < arr.size) : (arr.set! i v)[i]! = v := by
+  show (arr.setIfInBounds i v)[i]! = v
+  rw [getElem!_pos (arr.setIfInBounds i v) i
+        (by rw [Array.size_setIfInBounds]; exact hi),
+      Array.getElem_setIfInBounds_self]
+
+private theorem getElem!_set!_ne (arr : Array Fr) {i j : Nat} (v : Fr)
+    (hij : i ≠ j) (hj : j < arr.size) : (arr.set! i v)[j]! = arr[j]! := by
+  show (arr.setIfInBounds i v)[j]! = arr[j]!
+  rw [getElem!_pos (arr.setIfInBounds i v) j
+        (by rw [Array.size_setIfInBounds]; exact hj),
+      getElem!_pos arr j hj,
+      Array.getElem_setIfInBounds_ne hj hij]
+
+private theorem size_set! (arr : Array Fr) (i : Nat) (v : Fr) :
+    (arr.set! i v).size = arr.size :=
+  Array.size_setIfInBounds
+
+private theorem foldl_vanishing_extend_size_and_getElem!
+    (shortZeroPoly : PolynomialCoeff) (init : PolynomialCoeff)
+    (hinit : init.size = FIELD_ELEMENTS_PER_EXT_BLOB)
+    (k : Nat) (hk : k ≤ CELLS_PER_EXT_BLOB) :
+    let res := (List.range k).foldl
+      (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+      init
+    res.size = FIELD_ELEMENTS_PER_EXT_BLOB ∧
+      ∀ j < k, res[j * FIELD_ELEMENTS_PER_CELL]! = shortZeroPoly[j]! := by
+  induction k with
+  | zero =>
+    refine ⟨hinit, fun j hj => absurd hj (Nat.not_lt_zero j)⟩
+  | succ k ih =>
+    obtain ⟨hsz, hget⟩ := ih (by omega)
+    have hstep_sz :
+        (((List.range (k + 1)).foldl
+          (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+          init)).size = FIELD_ELEMENTS_PER_EXT_BLOB := by
+      rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
+          size_set!, hsz]
+    refine ⟨hstep_sz, fun j hj => ?_⟩
+    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    have hcell_pos : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+    have hext_eq : FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+    have hcells_eq : CELLS_PER_EXT_BLOB = 128 := rfl
+    rcases Nat.eq_or_lt_of_le (Nat.le_of_lt_succ hj) with rfl | hlt
+    · apply getElem!_set!_self
+      rw [hsz, hext_eq, hcell_pos]
+      omega
+    · rw [getElem!_set!_ne _ _ (by rw [hcell_pos]; omega) (by rw [hsz, hext_eq, hcell_pos]; omega)]
+      exact hget j hlt
+
+/-- On success, `constructVanishingPolynomial missingCellIndices` has fewer than
+`CELLS_PER_EXT_BLOB` missing cells and has coefficient `Fr.one` (hence non-zero)
+at degree `missingCellIndices.size * FIELD_ELEMENTS_PER_CELL`. -/
+theorem leadingCoeff_constructVanishingPolynomial
+    {missingCellIndices : Array CellIndex} {p : PolynomialCoeff}
+    (h : constructVanishingPolynomial missingCellIndices = .ok p) :
+    missingCellIndices.size < CELLS_PER_EXT_BLOB ∧
+      p[missingCellIndices.size * FIELD_ELEMENTS_PER_CELL]! = Fr.one ∧
+      p[missingCellIndices.size * FIELD_ELEMENTS_PER_CELL]!.isZero = false := by
+  simp only [constructVanishingPolynomial,
+    bind, Except.bind, pure, Except.pure] at h
+  split at h
+  · cases h
+  · rename_i hlt
+    have hlt' : missingCellIndices.size < CELLS_PER_EXT_BLOB :=
+      Nat.lt_of_not_le hlt
+    split at h
+    · cases h
+    · rename_i shortZeroPoly hshort
+      injection h with hp
+      subst hp
+      obtain ⟨hshort_sz, hshort_lead⟩ :=
+        size_and_leadingCoeff_vanishingPolynomialcoeff hshort
+      simp only [Array.size_map] at hshort_sz hshort_lead
+      have hfold :
+          (Array.range shortZeroPoly.size).foldl
+            (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+            (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) =
+          (List.range shortZeroPoly.size).foldl
+            (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+            (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) := by
+        rw [← Array.foldl_toList, Array.toList_range]
+      rw [hfold]
+      obtain ⟨_, hget⟩ := foldl_vanishing_extend_size_and_getElem!
+        shortZeroPoly (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+        (by simp) shortZeroPoly.size (by omega)
+      have hval := hget missingCellIndices.size (by omega)
+      rw [hshort_lead] at hval
+      exact ⟨hlt', hval, by rw [hval]; rfl⟩
+
+/-- `recoverPolynomialcoeff` rejects mismatched `cellIndices` and `cosetsEvals`
+lengths. -/
+theorem recoverPolynomialcoeff_length_mismatch
+    {cellIndices : Array CellIndex} {cosetsEvals : Array CosetEvals}
+    (h : cosetsEvals.size ≠ cellIndices.size) :
+    recoverPolynomialcoeff cellIndices cosetsEvals =
+      .error (.inputLengthMismatch "cosetsEvals" cellIndices.size cosetsEvals.size) := by
+  simp [recoverPolynomialcoeff, h, Bind.bind, Except.bind]
 
 set_option maxRecDepth 4096 in
 /-- On success, the recovered polynomial has exactly

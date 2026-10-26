@@ -38,6 +38,10 @@ inductive BlsError where
   | expandMessageOutputTooLong (len : Nat)
   /-- `expand_message_xmd` would need more than 255 hash blocks. -/
   | expandMessageTooManyBlocks (ell : Nat)
+  /-- `expand_message_xmd` was given an empty DST. -/
+  | expandMessageEmptyDst
+  /-- `simple_swu` found neither `g(x₁)` nor `g(x₂)` to be a square in `Fp2`. -/
+  | swuNoSquareFound
 
 /-- Human-readable description, used at the C-ABI boundary. -/
 def BlsError.message : BlsError → String
@@ -55,6 +59,10 @@ def BlsError.message : BlsError → String
       s!"expand_message_xmd output too long: {len}"
   | .expandMessageTooManyBlocks ell =>
       s!"expand_message_xmd too many blocks: {ell}"
+  | .expandMessageEmptyDst =>
+      "expand_message_xmd empty DST"
+  | .swuNoSquareFound =>
+      "simple_swu: neither gx1 nor gx2 is a square"
 
 /-- Run a fallible BLS computation down to `IO`, turning a `BlsError`
 into the `IO.userError` the C-ABI layer surfaces to callers. -/

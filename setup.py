@@ -72,7 +72,7 @@ class LakeThenBuild(build_ext):
     handing things to setuptools."""
 
     def run(self):
-        subprocess.check_call(["lake", "build"], cwd=str(REPO_ROOT))
+        subprocess.check_call(["lake", "build", "EthLib"], cwd=str(REPO_ROOT))
         sysroot = _lean_sysroot()
         if sysroot is None:
             raise RuntimeError(

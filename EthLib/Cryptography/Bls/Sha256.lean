@@ -10,18 +10,18 @@ namespace EthLib.Cryptography.Bls.Sha256
 
 /-! ## 32-bit primitives -/
 
-@[inline] private def rotr (x : UInt32) (n : UInt32) : UInt32 :=
+@[inline] def rotr (x : UInt32) (n : UInt32) : UInt32 :=
   (x >>> n) ||| (x <<< (32 - n))
 
-@[inline] private def shr (x : UInt32) (n : UInt32) : UInt32 := x >>> n
+@[inline] def shr (x : UInt32) (n : UInt32) : UInt32 := x >>> n
 
-@[inline] private def ch  (x y z : UInt32) : UInt32 := (x &&& y) ^^^ ((~~~x) &&& z)
-@[inline] private def maj (x y z : UInt32) : UInt32 := (x &&& y) ^^^ (x &&& z) ^^^ (y &&& z)
+@[inline] def ch  (x y z : UInt32) : UInt32 := (x &&& y) ^^^ ((~~~x) &&& z)
+@[inline] def maj (x y z : UInt32) : UInt32 := (x &&& y) ^^^ (x &&& z) ^^^ (y &&& z)
 
-@[inline] private def bigSigma0 (x : UInt32) : UInt32 := rotr x 2  ^^^ rotr x 13 ^^^ rotr x 22
-@[inline] private def bigSigma1 (x : UInt32) : UInt32 := rotr x 6  ^^^ rotr x 11 ^^^ rotr x 25
-@[inline] private def smallSigma0 (x : UInt32) : UInt32 := rotr x 7  ^^^ rotr x 18 ^^^ shr x 3
-@[inline] private def smallSigma1 (x : UInt32) : UInt32 := rotr x 17 ^^^ rotr x 19 ^^^ shr x 10
+@[inline] def bigSigma0 (x : UInt32) : UInt32 := rotr x 2  ^^^ rotr x 13 ^^^ rotr x 22
+@[inline] def bigSigma1 (x : UInt32) : UInt32 := rotr x 6  ^^^ rotr x 11 ^^^ rotr x 25
+@[inline] def smallSigma0 (x : UInt32) : UInt32 := rotr x 7  ^^^ rotr x 18 ^^^ shr x 3
+@[inline] def smallSigma1 (x : UInt32) : UInt32 := rotr x 17 ^^^ rotr x 19 ^^^ shr x 10
 
 /-! ## Round constants -/
 

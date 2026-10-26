@@ -1,4 +1,5 @@
 import EthLib.Cryptography.Kzg.Cells
+import EthLib.Cryptography.Kzg.Exports
 import EthLib.Cryptography.Proofs.Kzg.Polynomials
 
 /-!
@@ -28,6 +29,12 @@ theorem size_cosetForCell {cellIndex : CellIndex} {c : Coset}
     subst h
     simp
 
+/-- `cosetForCell` rejects an out-of-bounds cell index. -/
+theorem cosetForCell_cellIndexOutOfBounds {cellIndex : CellIndex}
+    (h : cellIndex ≥ CELLS_PER_EXT_BLOB) :
+    cosetForCell cellIndex = .error .cellIndexOutOfBounds := by
+  simp [cosetForCell, h, Bind.bind, Except.bind]
+
 /-- The cell-batch challenge is a canonical field element. -/
 theorem val_computeVerifyCellKzgProofBatchChallenge_lt
     (commitments : Array KZGCommitment)
@@ -39,6 +46,23 @@ theorem val_computeVerifyCellKzgProofBatchChallenge_lt
       cellIndices cosetsEvals proofs).val < Fr.modulus := by
   rw [computeVerifyCellKzgProofBatchChallenge]
   exact Fr.val_hashToBlsField_lt _
+
+/-- The cell-batch challenge serializes to `BYTES_PER_FIELD_ELEMENT` bytes
+and is a canonical field element. -/
+theorem size_computeVerifyCellKzgProofBatchChallenge
+    (commitments : Array KZGCommitment)
+    (commitmentIndices : Array CommitmentIndex)
+    (cellIndices : Array CellIndex)
+    (cosetsEvals : Array CosetEvals)
+    (proofs : Array KZGProof) :
+    (blsFieldToBytes (computeVerifyCellKzgProofBatchChallenge commitments
+      commitmentIndices cellIndices cosetsEvals proofs)).size =
+        BYTES_PER_FIELD_ELEMENT ∧
+    (computeVerifyCellKzgProofBatchChallenge commitments commitmentIndices
+      cellIndices cosetsEvals proofs).val < Fr.modulus :=
+  ⟨by simp only [blsFieldToBytes, Fr.toBytesBE, ByteArray.size, Array.size_ofFn,
+        BYTES_PER_FIELD_ELEMENT],
+   val_computeVerifyCellKzgProofBatchChallenge_lt _ _ _ _ _⟩
 
 /-- `cellToCosetEvals` rejects a wrongly-sized cell. -/
 theorem cellToCosetEvals_badCellSize {cell : Cell}
@@ -123,6 +147,78 @@ theorem verifyCellKzgProofBatchImpl_commitmentIndexOutOfBounds
   simp [verifyCellKzgProofBatchImpl, hcell, hcoset, hproof, h]
   rfl
 
+/-- Rejects a commitments array that contains duplicate entries. -/
+theorem verifyCellKzgProofBatchImpl_duplicateCommitments
+    {commitments : Array KZGCommitment}
+    {commitmentIndices : Array CommitmentIndex} {cellIndices : Array CellIndex}
+    {cosetsEvals : Array CosetEvals} {proofs : Array KZGProof}
+    (hcell : cellIndices.size = commitmentIndices.size)
+    (hcoset : cosetsEvals.size = commitmentIndices.size)
+    (hproof : proofs.size = commitmentIndices.size)
+    (hcidx : commitmentIndices.any (· ≥ commitments.size) = false)
+    (h : (Array.range commitments.size).any
+      (fun i => commitments.idxOf? commitments[i]! ≠ some i) = true) :
+    verifyCellKzgProofBatchImpl commitments commitmentIndices cellIndices
+        cosetsEvals proofs
+      = throw .duplicateCommitments := by
+  unfold verifyCellKzgProofBatchImpl
+  rw [h, hcidx]
+  simp [hcell, hcoset, hproof]
+  rfl
+
+/-- Alias for `verifyCellKzgProofBatchImpl_cellIndices_mismatch`. -/
+theorem computeVerifyCellKzgProofBatchChallenge_mismatch_cellIndices
+    {commitments : Array KZGCommitment}
+    {commitmentIndices : Array CommitmentIndex} {cellIndices : Array CellIndex}
+    {cosetsEvals : Array CosetEvals} {proofs : Array KZGProof}
+    (h : cellIndices.size ≠ commitmentIndices.size) :
+    verifyCellKzgProofBatchImpl commitments commitmentIndices cellIndices
+        cosetsEvals proofs
+      = throw (.inputLengthMismatch "cellIndices" commitmentIndices.size
+          cellIndices.size) :=
+  verifyCellKzgProofBatchImpl_cellIndices_mismatch h
+
+/-- Alias for `verifyCellKzgProofBatchImpl_cosetsEvals_mismatch`. -/
+theorem computeVerifyCellKzgProofBatchChallenge_mismatch_cosetsEvals
+    {commitments : Array KZGCommitment}
+    {commitmentIndices : Array CommitmentIndex} {cellIndices : Array CellIndex}
+    {cosetsEvals : Array CosetEvals} {proofs : Array KZGProof}
+    (hcell : cellIndices.size = commitmentIndices.size)
+    (h : cosetsEvals.size ≠ commitmentIndices.size) :
+    verifyCellKzgProofBatchImpl commitments commitmentIndices cellIndices
+        cosetsEvals proofs
+      = throw (.inputLengthMismatch "cosetsEvals" commitmentIndices.size
+          cosetsEvals.size) :=
+  verifyCellKzgProofBatchImpl_cosetsEvals_mismatch hcell h
+
+/-- Alias for `verifyCellKzgProofBatchImpl_proofs_mismatch`. -/
+theorem computeVerifyCellKzgProofBatchChallenge_mismatch_proofs
+    {commitments : Array KZGCommitment}
+    {commitmentIndices : Array CommitmentIndex} {cellIndices : Array CellIndex}
+    {cosetsEvals : Array CosetEvals} {proofs : Array KZGProof}
+    (hcell : cellIndices.size = commitmentIndices.size)
+    (hcoset : cosetsEvals.size = commitmentIndices.size)
+    (h : proofs.size ≠ commitmentIndices.size) :
+    verifyCellKzgProofBatchImpl commitments commitmentIndices cellIndices
+        cosetsEvals proofs
+      = throw (.inputLengthMismatch "proofs" commitmentIndices.size
+          proofs.size) :=
+  verifyCellKzgProofBatchImpl_proofs_mismatch hcell hcoset h
+
+/-- Alias for `verifyCellKzgProofBatchImpl_commitmentIndexOutOfBounds`. -/
+theorem computeVerifyCellKzgProofBatchChallenge_commitmentIndex_oob
+    {commitments : Array KZGCommitment}
+    {commitmentIndices : Array CommitmentIndex} {cellIndices : Array CellIndex}
+    {cosetsEvals : Array CosetEvals} {proofs : Array KZGProof}
+    (hcell : cellIndices.size = commitmentIndices.size)
+    (hcoset : cosetsEvals.size = commitmentIndices.size)
+    (hproof : proofs.size = commitmentIndices.size)
+    (h : commitmentIndices.any (· ≥ commitments.size) = true) :
+    verifyCellKzgProofBatchImpl commitments commitmentIndices cellIndices
+        cosetsEvals proofs
+      = throw .commitmentIndexOutOfBounds :=
+  verifyCellKzgProofBatchImpl_commitmentIndexOutOfBounds hcell hcoset hproof h
+
 /-! ## `verifyCellKzgProofBatch` validation -/
 
 /-- Rejects a `cells` array whose length does not match
@@ -176,6 +272,89 @@ theorem verifyCellKzgProofBatch_badCommitmentSize
     verifyCellKzgProofBatch commitmentsBytes cellIndices cells proofsBytes
       = throw (.badCommitmentSize cb.size) := by
   simp [verifyCellKzgProofBatch, hcells, hproofs, hcidx, h]
+  rfl
+
+/-- Rejects an out-of-bounds cell index in `verifyCellKzgProofBatch`. -/
+theorem verifyCellKzgProofBatch_cellIndexOutOfBounds
+    {commitmentsBytes : Array Bytes48} {cellIndices : Array CellIndex}
+    {cells : Array Cell} {proofsBytes : Array Bytes48}
+    (hcells : cells.size = commitmentsBytes.size)
+    (hproofs : proofsBytes.size = commitmentsBytes.size)
+    (hcidx : cellIndices.size = commitmentsBytes.size)
+    (hcb : commitmentsBytes.find? (fun cb => cb.size != BYTES_PER_COMMITMENT)
+      = none)
+    (h : cellIndices.any (· ≥ CELLS_PER_EXT_BLOB) = true) :
+    verifyCellKzgProofBatch commitmentsBytes cellIndices cells proofsBytes
+      = throw .cellIndexOutOfBounds := by
+  unfold verifyCellKzgProofBatch
+  rw [hcb, h]
+  simp [hcells, hproofs, hcidx]
+  rfl
+
+/-- Alias for `verifyCellKzgProofBatch_cellIndexOutOfBounds`. -/
+theorem computeVerifyCellKzgProofBatchChallenge_cellIndex_oob
+    {commitmentsBytes : Array Bytes48} {cellIndices : Array CellIndex}
+    {cells : Array Cell} {proofsBytes : Array Bytes48}
+    (hcells : cells.size = commitmentsBytes.size)
+    (hproofs : proofsBytes.size = commitmentsBytes.size)
+    (hcidx : cellIndices.size = commitmentsBytes.size)
+    (hcb : commitmentsBytes.find? (fun cb => cb.size != BYTES_PER_COMMITMENT)
+      = none)
+    (h : cellIndices.any (· ≥ CELLS_PER_EXT_BLOB) = true) :
+    verifyCellKzgProofBatch commitmentsBytes cellIndices cells proofsBytes
+      = throw .cellIndexOutOfBounds :=
+  verifyCellKzgProofBatch_cellIndexOutOfBounds hcells hproofs hcidx hcb h
+
+/-- Rejects a wrongly-sized cell, reporting the first offender. -/
+theorem verifyCellKzgProofBatch_badCellSize
+    {commitmentsBytes : Array Bytes48} {cellIndices : Array CellIndex}
+    {cells : Array Cell} {proofsBytes : Array Bytes48} {c : Cell}
+    (hcells : cells.size = commitmentsBytes.size)
+    (hproofs : proofsBytes.size = commitmentsBytes.size)
+    (hcidx : cellIndices.size = commitmentsBytes.size)
+    (hcb : commitmentsBytes.find? (fun cb => cb.size != BYTES_PER_COMMITMENT)
+      = none)
+    (hbound : cellIndices.any (· ≥ CELLS_PER_EXT_BLOB) = false)
+    (h : cells.find? (fun c => c.size != BYTES_PER_CELL) = some c) :
+    verifyCellKzgProofBatch commitmentsBytes cellIndices cells proofsBytes
+      = throw (.badCellSize c.size) := by
+  unfold verifyCellKzgProofBatch
+  rw [hcb, hbound, h]
+  simp [hcells, hproofs, hcidx]
+  rfl
+
+/-- Rejects a wrongly-sized proof, reporting the first offender. -/
+theorem verifyCellKzgProofBatch_badProofSize
+    {commitmentsBytes : Array Bytes48} {cellIndices : Array CellIndex}
+    {cells : Array Cell} {proofsBytes : Array Bytes48} {pb : Bytes48}
+    (hcells : cells.size = commitmentsBytes.size)
+    (hproofs : proofsBytes.size = commitmentsBytes.size)
+    (hcidx : cellIndices.size = commitmentsBytes.size)
+    (hcb : commitmentsBytes.find? (fun cb => cb.size != BYTES_PER_COMMITMENT)
+      = none)
+    (hbound : cellIndices.any (· ≥ CELLS_PER_EXT_BLOB) = false)
+    (hcellsz : cells.find? (fun c => c.size != BYTES_PER_CELL) = none)
+    (h : proofsBytes.find? (fun pb => pb.size != BYTES_PER_PROOF) = some pb) :
+    verifyCellKzgProofBatch commitmentsBytes cellIndices cells proofsBytes
+      = throw (.badProofSize pb.size) := by
+  unfold verifyCellKzgProofBatch
+  rw [hcb, hbound, hcellsz, h]
+  simp [hcells, hproofs, hcidx]
+  rfl
+
+/-- `Exports.unpackIndicesBE` rejects any byte buffer whose length is not a multiple of 8. -/
+theorem unpackIndicesBE_bad_size {b : ByteArray} (h : b.size % 8 ≠ 0) :
+    Exports.unpackIndicesBE b = throw (.badIndicesBytesSize b.size) := by
+  unfold Exports.unpackIndicesBE
+  simp [h]
+  rfl
+
+/-- `Exports.unpackIndicesBE` decodes the empty buffer to `#[]`. -/
+@[simp] theorem unpackIndicesBE_empty :
+    Exports.unpackIndicesBE ByteArray.empty = .ok #[] := by
+  have hsz : ByteArray.empty.size = 0 := rfl
+  unfold Exports.unpackIndicesBE
+  simp [hsz]
   rfl
 
 end EthLib.Cryptography.Kzg
