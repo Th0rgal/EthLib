@@ -53,6 +53,8 @@ import EthLib.Cryptography.Proofs.Bls.PairingMillerInvariant
 import EthLib.Cryptography.Proofs.Bls.PairingDivisor
 import EthLib.Cryptography.Proofs.Bls.PairingGroup
 import EthLib.Cryptography.Proofs.Bls.PairingEmbedding
+import EthLib.Cryptography.Proofs.Bls.CofactorSubgroupPreservation
+import EthLib.Cryptography.Proofs.Bls.CofactorGenerator
 import EthLib.Cryptography.Proofs.Bls.Signatures
 
 /-!
