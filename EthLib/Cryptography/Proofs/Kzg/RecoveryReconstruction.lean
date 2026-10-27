@@ -1,8 +1,10 @@
 import EthLib.Cryptography.Proofs.Kzg.RecoveryMasked
 import EthLib.Cryptography.Proofs.Kzg.CoefficientPadding
 import EthLib.Cryptography.Proofs.Kzg.ExtendedFft
+import EthLib.Cryptography.Proofs.Kzg.RecoveryCapacity
 
 set_option maxRecDepth 1000
+set_option maxHeartbeats 400000
 
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
@@ -102,5 +104,78 @@ theorem recoveryQuotient_inverse_extract
   rw [recoveryQuotient_eq_cosetFft hz hp hqsize hqeval,
     cosetFftField_extended_roundtrip _ (size_padCoefficients _ _), ← hp]
   exact extract_padCoefficients _ p (by rw [hp]; decide)
+
+/-- Unfolding the actual implementation yields exactly the verified numerator/quotient pipeline. -/
+theorem recoverPolynomialcoeff_eq_pipeline
+    {indices : Array CellIndex} {cells : Array CosetEvals} {z : PolynomialCoeff}
+    (hlen : cells.size = indices.size)
+    (hz : constructVanishingPolynomial (recoveryMissing indices) = .ok z) :
+    recoverPolynomialcoeff indices cells = .ok
+      ((cosetFftField
+        (recoveryQuotient
+          (fftField (recoveryNumerator indices cells z)
+            (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) true) z)
+        (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) true).extract 0 FIELD_ELEMENTS_PER_BLOB) := by
+  unfold recoveryQuotient recoveryNumerator recoveryFlatten writeRecoveryCell
+  unfold recoveryMissing at hz
+  unfold recoverPolynomialcoeff
+  rw [if_neg (by omega : ¬ cells.size ≠ indices.size)]
+  simp only [Bind.bind, Except.bind, hz, pure, Except.pure]
+
+/-- Exact executable recovery correctness: consistent samples with at most half the cells
+missing reconstruct the original 4096-coefficient polynomial. All FFT/product/division
+properties are proved above; the hypotheses specify only the supplied data. -/
+theorem recoverPolynomialcoeff_correct
+    {p : PolynomialCoeff} {indices : Array CellIndex} {cells : Array CosetEvals}
+    (hp : p.size = FIELD_ELEMENTS_PER_BLOB)
+    (hlen : cells.size = indices.size)
+    (hmissing : (recoveryMissing indices).size ≤ CELLS_PER_EXT_BLOB / 2)
+    (hmatch : RecoverySamplesMatch p indices cells) :
+    recoverPolynomialcoeff indices cells = .ok p := by
+  have hlt : (recoveryMissing indices).size < CELLS_PER_EXT_BLOB :=
+    lt_of_le_of_lt hmissing (by decide)
+  obtain ⟨z, hz, _, _⟩ := constructVanishingPolynomial_ok_of_lt hlt
+  obtain ⟨q, hqsize, hqeval⟩ := exists_recovery_product hz hmissing hp
+  rw [recoverPolynomialcoeff_eq_pipeline hlen hz,
+    recoveryNumerator_inverse hz hmatch hqsize hqeval,
+    recoveryQuotient_inverse_extract hz hp hqsize hqeval]
+
+/-- Recovery for the ordinary valid-input contract: at least 64 distinct in-range cells. -/
+theorem recoverPolynomialcoeff_correct_of_valid_indices
+    {p : PolynomialCoeff} {indices : Array CellIndex} {cells : Array CosetEvals}
+    (hp : p.size = FIELD_ELEMENTS_PER_BLOB)
+    (hlen : cells.size = indices.size)
+    (hnd : indices.toList.Nodup)
+    (hbound : ∀ ci ∈ indices.toList, ci < CELLS_PER_EXT_BLOB)
+    (hhalf : CELLS_PER_EXT_BLOB / 2 ≤ indices.size)
+    (hmatch : RecoverySamplesMatch p indices cells) :
+    recoverPolynomialcoeff indices cells = .ok p :=
+  recoverPolynomialcoeff_correct hp hlen
+    (recoveryMissing_size_le_half indices hnd hbound hhalf) hmatch
+
+/-- Produce the selected input cells by evaluating the original coefficient polynomial. -/
+def polynomialRecoverySamples (p : PolynomialCoeff) (indices : Array CellIndex) : Array CosetEvals :=
+  indices.map fun ci => Array.ofFn fun j : Fin FIELD_ELEMENTS_PER_CELL =>
+    evalPolyAt p (domainRoot FIELD_ELEMENTS_PER_EXT_BLOB ^
+      reverseBits (ci * FIELD_ELEMENTS_PER_CELL + j.val) FIELD_ELEMENTS_PER_EXT_BLOB)
+
+theorem polynomialRecoverySamples_match (p : PolynomialCoeff) (indices : Array CellIndex) :
+    RecoverySamplesMatch p indices (polynomialRecoverySamples p indices) := by
+  intro k hk j hj
+  unfold polynomialRecoverySamples
+  rw [getElem!_pos _ k (by simpa only [Array.size_map] using hk), Array.getElem_map,
+    getElem!_ofFn_fr _ _ j hj, getElem!_pos indices k hk]
+
+/-- Sampling any at-least-half subset of the valid cells and executing recovery returns
+exactly the original bounded-degree polynomial coefficient vector. -/
+theorem recoverPolynomialcoeff_samples_correct
+    (p : PolynomialCoeff) (indices : Array CellIndex)
+    (hp : p.size = FIELD_ELEMENTS_PER_BLOB)
+    (hnd : indices.toList.Nodup)
+    (hbound : ∀ ci ∈ indices.toList, ci < CELLS_PER_EXT_BLOB)
+    (hhalf : CELLS_PER_EXT_BLOB / 2 ≤ indices.size) :
+    recoverPolynomialcoeff indices (polynomialRecoverySamples p indices) = .ok p :=
+  recoverPolynomialcoeff_correct_of_valid_indices hp
+    (Array.size_map) hnd hbound hhalf (polynomialRecoverySamples_match p indices)
 
 end EthLib.Cryptography.Kzg
