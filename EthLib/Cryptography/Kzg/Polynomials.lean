@@ -110,17 +110,15 @@ def multiplyPolynomialcoeff (a b : PolynomialCoeff) :
 /-- Long polynomial division for two coefficient-form polynomials.
 Each step eliminates the current leading coefficient of `a` (at index
 `apos`, descending) and prepends the quotient coefficient to `o`.
-Throws on an empty divisor, and on a divisor with a zero leading
-coefficient whenever the division loop would run. -/
+Throws on an empty divisor or a divisor whose leading coefficient is
+zero when `a.size ≥ b.size`. -/
 def dividePolynomialcoeff (a b : PolynomialCoeff) :
     Except KzgError PolynomialCoeff := do
-  -- An empty divisor is invalid.
   if b.size = 0 then
     throw .zeroDivisorPolynomial
-  -- A zero leading coefficient would make every quotient step below a
-  -- division by zero, silently yielding 0 (see the `Div Fr` docstring)
-  -- instead of failing. Only reachable when the loop runs at least once.
-  if a.size ≥ b.size ∧ b[b.size - 1]!.isZero then
+  if a.size < b.size then
+    return #[]
+  if b[b.size - 1]!.isZero then
     throw .zeroDivisorPolynomial
   let bpos := b.size - 1
   -- The divisor's leading coefficient is loop-invariant; precompute its

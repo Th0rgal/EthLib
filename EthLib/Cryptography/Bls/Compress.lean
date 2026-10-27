@@ -130,13 +130,20 @@ def uncompress (bytes : ByteArray) : Except BlsError G1 :=
 def inSubgroup (p : G1) : Bool :=
   if p.isInfinity then true else (mulNat p Fr.modulus).isInfinity
 
+/-- Decompress + curve check + subgroup check, returning the validated
+`G1` point. Rejects the point at infinity per the IRTF BLS draft (§2.5);
+KZG's `validateKzgG1` wraps this with an explicit infinity-allow. -/
+def keyValidatePoint (bytes : ByteArray) : Except BlsError G1 := do
+  let p ← uncompress bytes
+  if p.isInfinity then throw .pointAtInfinity
+  if !inSubgroup p then throw .notInSubgroup
+  return p
+
 /-- Decompress + curve check + subgroup check. Rejects the point at
 infinity per the IRTF BLS draft (§2.5); KZG's `validateKzgG1` wraps
 this with an explicit infinity-allow. -/
 def keyValidate (bytes : ByteArray) : Except BlsError Unit := do
-  let p ← uncompress bytes
-  if p.isInfinity then throw .pointAtInfinity
-  if !inSubgroup p then throw .notInSubgroup
+  let _ ← keyValidatePoint bytes
 
 end G1
 
@@ -149,7 +156,7 @@ def infinityBytes : ByteArray :=
   ByteArray.mk <| (Array.replicate 96 (0 : UInt8)).set! 0 0xc0
 
 /-- Encode `Fp2` as 96 big-endian bytes (`c1 ‖ c0`). -/
-private def fp2ToBytes (x : Fp2) : ByteArray :=
+def fp2ToBytes (x : Fp2) : ByteArray :=
   x.c1.toBytesBE ++ x.c0.toBytesBE
 
 /-- Compressed 96-byte serialization. -/

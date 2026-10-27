@@ -61,8 +61,7 @@ The Python C extension queries every size at module-init time via these
 hardcoded constants of its own.
 
 Each accessor takes a `Unit` to make the C-ABI signature predictable
-(`UInt64 (*)(uint8_t)` after Lean's calling convention squashes the
-unit). -/
+(`uint64_t (*)(lean_object*)`, called with `lean_box(0)`). -/
 
 @[export eth_kzg_const_bytes_per_field_element]
 def constBytesPerFieldElement (_ : Unit) : UInt64 :=
