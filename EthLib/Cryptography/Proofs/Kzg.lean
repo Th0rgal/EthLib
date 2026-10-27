@@ -16,6 +16,7 @@ import EthLib.Cryptography.Proofs.Kzg.RecoveryCoset
 import EthLib.Cryptography.Proofs.Kzg.RecoveryProduct
 import EthLib.Cryptography.Proofs.Kzg.CoefficientPadding
 import EthLib.Cryptography.Proofs.Kzg.RecoveryDomain
+import EthLib.Cryptography.Proofs.Kzg.RecoveryFlatten
 
 /-!
 # `EthLib.Cryptography.Proofs.Kzg`
