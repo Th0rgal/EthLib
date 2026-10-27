@@ -156,7 +156,7 @@ def computeKzgProof (blob : Blob) (zBytes : Bytes32) : KzgM (KZGProof × Bytes32
 /-- Verify a KZG proof that `p(z) == y`, where `p(x)` is the polynomial
 committed to in `commitmentG1`. Checks the pairing equation
 `e(P - [y], -[1]) * e(proof, [s] - [z]) == 1`. -/
-private def verifyKzgProofImpl
+def verifyKzgProofImpl
     (commitmentG1 : G1) (z y : Fr) (proofG1 : G1)
     : KzgM Bool := do
   let setup ← TrustedSetup.get!
