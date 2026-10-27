@@ -40,4 +40,38 @@ theorem domainRoot_extended_pow_cell :
   rw [hpow]
   congr 1
 
+/-- Natural FFT roots have the cell powers expected by the vanishing-polynomial constructor. -/
+theorem extendedRoot_cellPower (j : Nat) :
+    Fr.powNat (domainRoot FIELD_ELEMENTS_PER_EXT_BLOB ^ j) FIELD_ELEMENTS_PER_CELL =
+      (computeRootsOfUnity CELLS_PER_EXT_BLOB)[reverseBits
+        (reverseBits j FIELD_ELEMENTS_PER_EXT_BLOB / FIELD_ELEMENTS_PER_CELL)
+        CELLS_PER_EXT_BLOB]! := by
+  rw [reverseBits_cellOfRoot]
+  have hj : j % CELLS_PER_EXT_BLOB < (computeRootsOfUnity CELLS_PER_EXT_BLOB).size := by
+    rw [size_computeRootsOfUnity]
+    exact Nat.mod_lt _ (by decide)
+  rw [getElem!_pos (computeRootsOfUnity CELLS_PER_EXT_BLOB) _ hj,
+    getElem_computeRootsOfUnity, Bls.Fr.powNat_eq_pow]
+  have hp (x : Fr) (a b : Nat) : (x ^ a) ^ b = (x ^ b) ^ a := by
+    rw [← pow_mul, ← pow_mul, Nat.mul_comm]
+  rw [hp, domainRoot_extended_pow_cell]
+  have hω : domainRoot CELLS_PER_EXT_BLOB ^ CELLS_PER_EXT_BLOB = (1 : Fr) :=
+    (isPrimitiveRoot_domainRoot
+      (Nat.dvd_of_mod_eq_zero (by decide) : CELLS_PER_EXT_BLOB ∣ BLS_MODULUS - 1)).pow_eq_one
+  have hadd (x : Fr) (a b : Nat) : x ^ (a + b) = x ^ a * x ^ b := pow_add x a b
+  have hmul (x : Fr) (a b : Nat) : x ^ (a * b) = (x ^ a) ^ b := pow_mul x a b
+  conv_lhs => rw [← Nat.mod_add_div j CELLS_PER_EXT_BLOB]
+  rw [hadd, hmul, hω]
+  have hone (n : Nat) : (1 : Fr) ^ n = 1 := one_pow n
+  rw [hone]
+  exact mul_one _
+
+/-- An erased cell's natural-order FFT positions are zeros of the constructed vanishing polynomial. -/
+theorem constructVanishingPolynomial_missing_root
+    {missing : Array CellIndex} {z : PolynomialCoeff}
+    (hz : constructVanishingPolynomial missing = .ok z) (j : Nat)
+    (hm : reverseBits j FIELD_ELEMENTS_PER_EXT_BLOB / FIELD_ELEMENTS_PER_CELL ∈ missing.toList) :
+    evalPolyAt z (domainRoot FIELD_ELEMENTS_PER_EXT_BLOB ^ j) = Fr.zero :=
+  constructVanishingPolynomial_eval_eq_zero hz hm (extendedRoot_cellPower j)
+
 end EthLib.Cryptography.Kzg
