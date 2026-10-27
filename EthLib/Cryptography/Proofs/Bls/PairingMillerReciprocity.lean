@@ -1,6 +1,14 @@
 import EthLib.Cryptography.Proofs.Bls.PairingReciprocity
 import EthLib.Cryptography.Proofs.Bls.PairingTateAdditivity
 
+/-!
+# Proofs: the Miller function does not depend on the evaluation point
+
+The evaluation point changes the line values the code computes.
+
+It does not change the formal numerator and denominator the loop builds.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 
 theorem millerDouble_fst_evalIndependent (T P Q : EmbeddedPoint) :

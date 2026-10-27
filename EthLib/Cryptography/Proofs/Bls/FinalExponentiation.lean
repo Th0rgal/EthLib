@@ -13,7 +13,6 @@ Miller evaluation is a bilinear pairing.
 -/
 namespace EthLib.Cryptography.Bls
 
-set_option maxRecDepth 4000
 
 private def fp2Equiv : Fp2 ≃ Fp × Fp where
   toFun a := (a.c0, a.c1)

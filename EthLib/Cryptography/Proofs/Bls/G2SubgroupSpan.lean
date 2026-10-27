@@ -100,6 +100,3 @@ theorem exists_mul_generator_of_inSubgroup {P : G2} (hP : Valid P)
 
 end EthLib.Cryptography.Bls.G2
 
-#print axioms EthLib.Cryptography.Bls.G2.card_point_eq_candidate
-#print axioms EthLib.Cryptography.Bls.G2.exists_nsmul_generator_of_modulus_smul_eq_zero
-#print axioms EthLib.Cryptography.Bls.G2.exists_mul_generator_of_inSubgroup

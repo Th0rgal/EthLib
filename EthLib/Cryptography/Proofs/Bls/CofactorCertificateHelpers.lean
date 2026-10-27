@@ -1,8 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.CofactorCardinality
+
+/-!
+# Proofs: helpers for the G2 cofactor certificates
+
+A fuel-bounded scalar multiplication on G2, proved equal to the library's one.
+
+The fuel makes it reduce in the kernel, so certificate points can be checked by evaluation.
+-/
 namespace EthLib.Cryptography.Bls.CofactorCertificate
-set_option maxRecDepth 10000
-set_option maxHeartbeats 2000000
-set_option exponentiation.threshold 1024
 
  def mulAux : Nat → G2 → Nat → G2
   | 0, _, _ => G2.zero

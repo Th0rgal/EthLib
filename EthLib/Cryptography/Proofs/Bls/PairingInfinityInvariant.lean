@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingInfinity
 
+/-!
+# Proofs: the Miller functions at infinity
+
+Each line contributes a known order at the point at infinity.
+
+The invariant tracks that contribution through every doubling and addition step.
+
+So the divisor of the Miller function is known at infinity as well as at finite points.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 namespace Infinity
 

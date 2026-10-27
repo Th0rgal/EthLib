@@ -198,7 +198,6 @@ theorem simpleSwu_curve_eq {u : Fp2} {p : Fp2 × Fp2}
 section SwuTotal
 open scoped EthLib.Cryptography.Bls.Fp
 
-set_option maxRecDepth 4000
 
 private theorem sq_pm_zmod {s n : ZMod Fp.modulus} (h : s * s = n * n) :
     s = n ∨ s = -n := by

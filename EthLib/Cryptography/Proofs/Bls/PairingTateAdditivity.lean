@@ -11,8 +11,6 @@ the evaluation argument and the Ate comparison remain separate work.
 namespace EthLib.Cryptography.Bls.Embedded
 namespace Tate
 open FunctionSymmetry
-set_option maxRecDepth 8000
-set_option maxHeartbeats 1200000
 
 noncomputable def state (R P : EmbeddedPoint) : MillerState :=
   MillerState.run Fr.modulus R P Fr.modulus.log2 (MillerState.initial R)

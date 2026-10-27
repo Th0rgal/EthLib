@@ -10,8 +10,6 @@ For n=|x| and cursor S=[n]Q, the negative Miller function is
 the executable conjugation yields exactly its reduced value.
 -/
 namespace EthLib.Cryptography.Bls
-set_option maxRecDepth 4000
-set_option maxHeartbeats 200000
 namespace Embedded
 open WeierstrassCurve.Affine WeierstrassCurve.Affine.CoordinateRing Polynomial
 

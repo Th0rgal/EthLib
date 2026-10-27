@@ -16,8 +16,6 @@ a degree-nine polynomial identity and the nonvanishing denominators.
 
 namespace EthLib.Cryptography.Bls.HashToCurve
 open EthLib.Cryptography.Bls
-set_option maxRecDepth 8000
-set_option maxHeartbeats 1600000
 local notation "I" => Fp2.i
 private def xn (x : Fp2) := x^3 + (12-12*I)*x^2 - 24*I*x + 304+304*I
 private def yn (x : Fp2) := -x^3 + (-18+18*I)*x^2 + 264*I*x + 752+752*I
@@ -88,6 +86,7 @@ private theorem iso_normalized (x y : Fp2) :
   · ring
 
 open scoped EthLib.Cryptography.Bls.Fp
+set_option maxRecDepth 8000 in
 set_option exponentiation.threshold 512 in
 private theorem sq_ne_two (z : ZMod Fp.modulus) : z * z ≠ 2 := by
   intro h

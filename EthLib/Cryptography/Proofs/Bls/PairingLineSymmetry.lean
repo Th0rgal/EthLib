@@ -1,5 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingDivisor
 
+/-!
+# Proofs: the chord does not depend on the order of its points
+
+The line through `T` and `R` is the line through `R` and `T`.
+
+For finite points, the addition step gives the same cursor either way.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open Polynomial WeierstrassCurve.Affine WeierstrassCurve.Affine.CoordinateRing
 

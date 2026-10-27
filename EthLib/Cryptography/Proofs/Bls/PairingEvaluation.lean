@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingDivisor
 
+/-!
+# Proofs: evaluating coordinate-ring functions
+
+Functions on the curve are evaluated at a finite point by evaluating their polynomial representatives.
+
+This is well defined, because two representatives differ by a multiple of the curve equation.
+
+The line functions of the Miller loop evaluate to exactly the values the code computes.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open WeierstrassCurve.Affine
 open WeierstrassCurve.Affine.CoordinateRing

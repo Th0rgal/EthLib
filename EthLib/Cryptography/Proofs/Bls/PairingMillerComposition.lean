@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG1
 
+/-!
+# Proofs: composing Miller loops
+
+The Miller state for a scalar `n` is a cursor point and a function.
+
+The cursor is `n` times the source point, and the function stays nonzero.
+
+Scalars compose: two compositions that reach the same scalar give the same function, up to the expected factors.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open FunctionSymmetry
 namespace ReducedMiller

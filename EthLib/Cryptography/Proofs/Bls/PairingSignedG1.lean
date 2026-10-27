@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingAteEvaluation
 
+/-!
+# Proofs: the pairing is additive in its G1 argument
+
+A pairing with the point at infinity is 1.
+
+The code's pairing equals the signed ate value at the embedded point.
+
+It respects projective representatives, and adds on multiples of the G1 generator.
+-/
+
 namespace EthLib.Cryptography.Bls
 open Embedded PairingTower
 

@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingInfinityInvariant
 
+/-!
+# Proofs: a chart at the point at infinity
+
+The functions `x` and `y` are nonzero elements of the curve's function field, and satisfy `y^2 = x^3 + 4`.
+
+Near infinity the chart `u = x / y`, `v = 1 / y` is used.
+
+This lets the proofs compute the order of a function at the point at infinity.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded.Infinity
 open WeierstrassCurve.Affine
 open WeierstrassCurve.Affine.CoordinateRing

@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingRefinement
 
+/-!
+# Proofs: the pairing ignores the choice of G1 representative
+
+Jacobian coordinates represent each point in many ways.
+
+Two representatives that are equal under projective equality give the same affine point.
+
+So they give the same pairing value.
+-/
+
 namespace EthLib.Cryptography.Bls
 open scoped EthLib.Cryptography.Bls.Fp
 namespace G1

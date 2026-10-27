@@ -1,5 +1,14 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedReciprocity
-set_option maxRecDepth 8000
+
+/-!
+# Proofs: the Miller value as a function on the curve
+
+The Miller loop builds a rational function on the curve, and its executable value is that function evaluated at a point.
+
+This file defines the reduced value for the negative BLS parameter and proves it equals what the code computes.
+
+It also proves the value is nonzero, and that values at opposite points multiply to one.
+-/
 
 namespace EthLib.Cryptography.Bls.Embedded
 open PairingTower PairingSource

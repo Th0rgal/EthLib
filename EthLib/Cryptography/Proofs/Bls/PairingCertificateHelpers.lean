@@ -1,8 +1,19 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG2
-namespace EthLib.Cryptography.Bls.PairingCertificate
-set_option maxRecDepth 100000
-set_option maxHeartbeats 0
 
+/-!
+# Proofs: helpers for the pairing certificates
+
+Each lemma turns a claimed value into a fact about one operation.
+
+- An inverse is checked by one multiplication.
+- A slope is checked by one multiplication against its numerator.
+- A Miller step is checked from its slope.
+
+So the certificates never ask the kernel to invert a field element.
+-/
+namespace EthLib.Cryptography.Bls.PairingCertificate
+
+set_option maxHeartbeats 800000 in
 theorem inverse_cert {a b : Fp12} (h : a * b = 1) : a.inverse = b :=
   inv_eq_of_mul_eq_one_right h
 

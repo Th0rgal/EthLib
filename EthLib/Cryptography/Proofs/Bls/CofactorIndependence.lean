@@ -3,9 +3,17 @@ import EthLib.Cryptography.Proofs.Bls.CofactorPointQ23
 import EthLib.Cryptography.Proofs.Bls.CofactorPointIndependent13
 import EthLib.Cryptography.Proofs.Bls.CofactorPointIndependent23
 
+/-!
+# Proofs: independence of the G2 test points
+
+For the primes 13 and 23 there are two test points of that order.
+
+The second point is not a multiple of the first.
+
+So each of these primes appears at least squared in the group order.
+-/
+
 namespace EthLib.Cryptography.Bls.CofactorCertificate
-set_option maxRecDepth 10000
-set_option maxHeartbeats 2000000
 
 theorem not_nsmul_cert (P Q : G2) (hp : G2.Valid P) (hq : G2.Valid Q)
     (n fuel : Nat) (hn : n < 2 ^ fuel)
@@ -34,5 +42,3 @@ theorem independent23_not_span (i : Fin 23) :
     (Nat.lt_trans i.isLt (by decide)) (hc i)
 
 end EthLib.Cryptography.Bls.CofactorCertificate
-#print axioms EthLib.Cryptography.Bls.CofactorCertificate.independent13_not_span
-#print axioms EthLib.Cryptography.Bls.CofactorCertificate.independent23_not_span

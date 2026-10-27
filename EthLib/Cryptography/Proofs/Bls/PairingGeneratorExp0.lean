@@ -1,6 +1,20 @@
 import EthLib.Cryptography.Proofs.Bls.PairingGeneratorMiller
-set_option maxHeartbeats 0
-set_option maxRecDepth 100000
+
+/-!
+# Proofs: final exponentiation of the generator pairing, part 0
+
+Part 0 of a certificate chain for `base^finalExpExponent`, where `base` is the conjugated Miller value of the two generators.
+
+Each value `e_i` is a power of `base`, written out in full.
+
+Each theorem squares the previous power and multiplies by `base` when the next exponent bit is set.
+
+The kernel checks each step.
+
+The values come from running the computation, so they are not checks on their own.
+
+The chain ends in the generator pairing value, which is then shown to be different from 1.
+-/
 namespace EthLib.Cryptography.Bls.PairingCertificate
 open scoped EthLib.Cryptography.Bls.Fp
 def e0 : Fp12 := base

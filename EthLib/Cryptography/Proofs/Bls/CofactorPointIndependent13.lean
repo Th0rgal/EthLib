@@ -1,8 +1,18 @@
 import EthLib.Cryptography.Proofs.Bls.CofactorCertificateHelpers
+
+/-!
+# Proofs: a G2 test point of order 13, independent of the first
+
+A certificate point used to bound the size of the G2 curve group.
+
+The file proves, by kernel evaluation, that the point:
+
+- lies on the curve,
+- is not the point at infinity,
+- is killed by multiplication by 13, independent of the first,
+- is sent to infinity by the cofactor-clearing formula, computed with fuel-bounded multiplication.
+-/
 namespace EthLib.Cryptography.Bls.CofactorCertificate
-set_option maxRecDepth 10000
-set_option maxHeartbeats 2000000
-set_option exponentiation.threshold 1024
 def independent13 : G2 := ⟨⟨Fp.ofNat 3785287291595963449363006157517216238553350702866930745119159863557026318432990055432590987617994111761605730590096, Fp.ofNat 184693031912202050728408694521708133615870844071267710200043165266197174504058993766601268896503937827921675108037⟩, ⟨Fp.ofNat 2195351338994857125885432308745262298009915734180443935023142416529216833251357026902328260293191354579154915458365, Fp.ofNat 1169630515586987845958993562785169716010090905281211931821796767787587650059725646863962186262369911948032443419257⟩, Fp2.one⟩
 theorem independent13_valid : G2.Valid independent13 := G2.valid_of_affine_equation (by decide +kernel)
 theorem independent13_nonzero : G2.toPoint independent13 ≠ 0 := by
@@ -13,4 +23,3 @@ theorem independent13_annihilator : 13 • G2.toPoint independent13 = 0 :=
   nsmul_zero_cert independent13 independent13_valid 13 5 (by decide +kernel) (by decide +kernel)
 theorem independent13_clear_zero : (clearAux independent13).isInfinity = true := by decide +kernel
 end EthLib.Cryptography.Bls.CofactorCertificate
-#print axioms EthLib.Cryptography.Bls.CofactorCertificate.independent13_annihilator

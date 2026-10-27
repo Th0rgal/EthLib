@@ -28,11 +28,22 @@ structure G1 where
   z : Fp
 deriving Inhabited, Repr
 
-/-- Projective equivalence on Jacobian coordinates: `(X₁, Y₁, Z₁) == (X₂, Y₂, Z₂)`
-holds iff both represent the point at infinity (`Z = 0`) or `X₁ Z₂² = X₂ Z₁²`
-and `Y₁ Z₂³ = Y₂ Z₁³`. Because distinct triples can represent the same point
-(for example, `G1.zero == default`), this relation is not structural equality
-and must never be given a `LawfulBEq` instance. -/
+/-- Two Jacobian triples are equal when they denote the same point.
+
+A triple `(X, Y, Z)` with `Z != 0` denotes the affine point `(X / Z^2, Y / Z^3)`.
+
+Every triple with `Z = 0` denotes the point at infinity.
+
+```text
+    both Z = 0                ->  equal
+    exactly one Z = 0         ->  not equal
+    otherwise                 ->  X_1 Z_2^2 = X_2 Z_1^2  and  Y_1 Z_2^3 = Y_2 Z_1^3
+```
+
+Distinct triples can denote the same point.
+
+So this equality is not equality of the stored coordinates, and must never be declared lawful.
+-/
 instance : BEq G1 where
   beq p q :=
     if p.z.isZero then q.z.isZero

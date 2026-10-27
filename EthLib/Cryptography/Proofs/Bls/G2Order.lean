@@ -21,7 +21,6 @@ namespace EthLib.Cryptography.Bls.G2
 
 open WeierstrassCurve.Jacobian
 
-set_option maxRecDepth 8000
 
 /-! ## `[r]g₂ = 0` -/
 
@@ -53,6 +52,7 @@ private theorem mulNatAux_eq (fuel : Nat) (p : G2) (k : Nat)
         omega
       rw [if_neg h0, if_neg h0, ih (double p) (k / 2) h2]
 
+set_option maxRecDepth 8000 in
 /-- `[r]g₂` is the point at infinity, checked by the kernel through
 the fuel-based ladder: 255 doublings/additions of 381-bit arithmetic. -/
 theorem modulus_smul_generator :

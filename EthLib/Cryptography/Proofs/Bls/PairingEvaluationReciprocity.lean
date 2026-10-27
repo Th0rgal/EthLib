@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingVerticalReciprocity
 
+/-!
+# Proofs: reciprocity at the evaluation point
+
+The evaluation point must avoid the support of the Miller functions.
+
+Points from G1 do, because the Miller cursors live on the twist.
+
+Under that condition, the values at a point and at its negative multiply to one, and the values at the three points of a line multiply to one.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 namespace Tate
 

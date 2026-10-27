@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedSource
 
+/-!
+# Proofs: the pairing scales in its G2 argument
+
+The BLS parameter is negative, and conjugating the positive Miller value inverts it after final exponentiation.
+
+So multiplying the G2 generator by `n` raises the pairing to the power `n`.
+
+Both scalar arguments then reduce to powers of the generator pairing.
+-/
+
 namespace EthLib.Cryptography.Bls
 open Embedded PairingTower PairingSource
 

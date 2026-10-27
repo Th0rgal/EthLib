@@ -1,5 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingG1Reciprocity
 
+/-!
+# Proofs: bilinearity of the reduced Tate pairing
+
+The reduced Tate pairing is identified with the executable loop on valid points.
+
+It is additive in the G1 argument, sends the G1 identity to 1, and scales with natural multiples in both arguments.
+-/
+
 namespace EthLib.Cryptography.Bls
 open Embedded
 

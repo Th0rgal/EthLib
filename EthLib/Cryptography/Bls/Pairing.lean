@@ -81,6 +81,7 @@ def ofG2 (p : G2) : Point :=
 
 end Embedded
 
+/-- A point of the curve over the degree-12 extension, where both pairing inputs are embedded. -/
 abbrev EmbeddedPoint := Embedded.Point
 
 /-! ## Line functions -/
@@ -105,13 +106,23 @@ end Line
 
 /-! ## Miller loop -/
 
-/-- Doubling step: `(T, P) ↦ (2T, l_{T,T}(P))`. -/
+/-- One doubling step of the Miller loop.
+
+Returns `2T` and the tangent line at `T`, evaluated at `P`.
+
+```text
+    (T, P)  ->  (2T, l_{T,T}(P))
+```
+-/
 def millerDouble (T P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
+  -- Doubling infinity gives infinity, and contributes no line.
   if T.inf then
     (T, Fp12.one)
+  -- A point with y = 0 has a vertical tangent, and 2T is infinity.
   else if T.y == Fp12.zero then
     let l := if P.inf then Fp12.one else P.x - T.x
     ({ x := Fp12.zero, y := Fp12.zero, inf := true }, l)
+  -- The general case: the tangent line through T.
   else
     let m := Line.tangentSlope T.x T.y
     let x₃ := m * m - T.x - T.x
@@ -119,18 +130,29 @@ def millerDouble (T P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
     let l := if P.inf then Fp12.one else Line.evalAt T.x T.y m P.x P.y
     ({ x := x₃, y := y₃, inf := false }, l)
 
-/-- Addition step: `(T, R₀, P) ↦ (T + R₀, l_{T,R₀}(P))`. -/
+/-- One addition step of the Miller loop.
+
+Returns `T + R_0` and the line through `T` and `R_0`, evaluated at `P`.
+
+```text
+    (T, R_0, P)  ->  (T + R_0, l_{T,R_0}(P))
+```
+-/
 def millerAdd (T R₀ P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
+  -- Adding infinity changes nothing, and contributes no line.
   if T.inf then
     (R₀, Fp12.one)
   else if R₀.inf then
     (T, Fp12.one)
   else if T.x == R₀.x then
+    -- The same point: the chord is the tangent.
     if T.y == R₀.y then
       millerDouble T P
+    -- Opposite points: the chord is vertical, and the sum is infinity.
     else
       let l := if P.inf then Fp12.one else P.x - T.x
       ({ x := Fp12.zero, y := Fp12.zero, inf := true }, l)
+  -- The general case: the chord through T and R_0.
   else
     let m := Line.addSlope T.x T.y R₀.x R₀.y
     let x₃ := m * m - T.x - R₀.x
@@ -138,21 +160,37 @@ def millerAdd (T R₀ P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
     let l := if P.inf then Fp12.one else Line.evalAt T.x T.y m P.x P.y
     ({ x := x₃, y := y₃, inf := false }, l)
 
-/-- Walk the bits of `n` from the most-significant down. -/
+/-- The Miller loop for `n`, with `R_0` as the moving point and `P` as the evaluation point.
+
+It reads the bits of `n` below the leading one, from the top down.
+
+```text
+    T = R_0,  f = 1
+    for each bit b, from bit (log2 n - 1) down to bit 0:
+        f = f^2 * l_{T,T}(P),        T = 2T
+        if b = 1:  f = f * l_{T,R_0}(P),  T = T + R_0
+```
+
+The recursion counts down the bit index, so the kernel can unfold it.
+-/
 def millerLoop (n : Nat) (R₀ P : EmbeddedPoint) : Fp12 :=
+  -- A pairing with the point at infinity is 1.
   if R₀.inf || P.inf then Fp12.one
   else
     let rec go (i : Nat) (T : EmbeddedPoint) (f : Fp12) : Fp12 :=
       match i with
       | 0 => f
       | i' + 1 =>
+        -- Double, and square the accumulated value.
         let (T', l₁) := millerDouble T P
         let f' := f * f * l₁
+        -- Add R_0 when bit i' of n is set.
         if n.testBit i' then
           let (T'', l₂) := millerAdd T' R₀ P
           go i' T'' (f' * l₂)
         else
           go i' T' f'
+    -- The leading bit is consumed by starting from T = R_0.
     go (n.log2) R₀ Fp12.one
 
 /-! ## Final exponentiation -/
@@ -170,7 +208,12 @@ def finalExpExponent : Nat :=
 /-- The BLS parameter `|x|`. -/
 def blsX : Nat := 0xD201000000010000
 
-/-- Optimal-ate pairing `e(p, q) ∈ Fp12`. -/
+/-- The optimal ate pairing `e(p, q)`, an element of the degree-12 extension.
+
+The BLS parameter `x` is negative, so the loop runs over `|x|` and its value is conjugated.
+
+The final exponentiation then maps the result into the group of `r`-th roots of unity.
+-/
 def pairing (p : G1) (q : G2) : Fp12 :=
   let f := millerLoop blsX (Embedded.ofG2 q) (Embedded.ofG1 p)
   finalExponentiation f.conjugate

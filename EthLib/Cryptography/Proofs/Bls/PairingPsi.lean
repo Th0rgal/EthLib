@@ -11,8 +11,6 @@ namespace PairingPsi
 open WeierstrassCurve.Affine
 open HashToCurve PairingTower PairingSource
 
-set_option maxRecDepth 8000
-set_option maxHeartbeats 1200000
 
 private theorem alpha_cube : psiAlpha ^ 3 = psiBeta ^ 2 := by decide +kernel
 private theorem beta_twist : psiBeta ^ 2 * G2.bTwist.conjugate = G2.bTwist := by decide +kernel

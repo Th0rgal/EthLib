@@ -28,22 +28,38 @@ def G2_POINT_AT_INFINITY : ByteArray := G2.infinityBytes
 /-- IRTF `signature_subgroup_check`. Slow but correct. -/
 def signatureSubgroupCheck (sig : G2) : Bool := G2.inSubgroup sig
 
-/-- IRTF `SkToPk`: derive the compressed 48-byte `G1` public key from
-a scalar secret key `sk ∈ [1, r)`. Rejects `sk = 0` and `sk ≥ r`. -/
+/-- The public key of a secret key: `SkToPk` in the IRTF BLS signature draft, section 2.4.
+
+The key is `sk * G_1`, compressed to 48 bytes.
+
+The draft requires `1 <= sk < r`, and any other value is rejected.
+-/
 def skToPk (sk : Nat) : Except BlsError ByteArray :=
   if sk = 0 || sk ≥ Fr.modulus then
     .error .nonCanonicalFieldElement
   else
     .ok (G1.compress (G1.mulNat G1.generator sk))
 
-/-- IRTF `Sign`: sign `msg` with secret key `sk ∈ [1, r)`. -/
+/-- Sign a message: `CoreSign` in the IRTF BLS signature draft, section 2.6.
+
+The signature is `sk * H(msg)`, compressed to 96 bytes, where `H` hashes to G2.
+
+The draft requires `1 <= sk < r`, and any other value is rejected.
+-/
 def sign (sk : Nat) (msg : ByteArray) : Except BlsError ByteArray := do
   if sk = 0 || sk ≥ Fr.modulus then
     throw .nonCanonicalFieldElement
   let q ← HashToCurve.hashToG2 msg DST
   return G2.compress (G2.mulNat q sk)
 
-/-- IRTF `Aggregate`: sum a non-empty array of compressed `G2` signatures. -/
+/-- Sum signatures: `Aggregate` in the IRTF BLS signature draft, section 2.8.
+
+Each signature is decompressed, and the sum is compressed again.
+
+The draft requires at least one signature.
+
+As in the draft, the signatures are not checked for subgroup membership here.
+-/
 def aggregate (sigs : Array ByteArray) : Except BlsError ByteArray := do
   if sigs.isEmpty then
     throw .emptyPubkeyList
@@ -53,10 +69,15 @@ def aggregate (sigs : Array ByteArray) : Except BlsError ByteArray := do
     agg := G2.add agg sig
   return G2.compress agg
 
-/-- Core pairing check for an already-validated `G1` public key. -/
+/-- The pairing check of `CoreVerify`, for a public key that is already validated.
+
+```text
+    e(G_1, sig) * e(-pk, H(msg)) = 1
+```
+-/
 def coreVerifyPoint
     (pk : G1) (msg : ByteArray) (sigBytes : ByteArray) : Bool :=
-  -- Validate signature: decompress, on-curve (implicit), in subgroup.
+  -- The signature must decompress to a curve point in the order-r subgroup.
   if sigBytes.size ≠ 96 then false
   else match G2.uncompress sigBytes with
   | .error _ => false
@@ -71,7 +92,10 @@ def coreVerifyPoint
           (G1.neg pk, q)
         ]
 
-/-- IRTF `CoreVerify`: pairing-equation check `e(P, R) · e(-PK, Q) == 1`. -/
+/-- Verify a signature: `CoreVerify` in the IRTF BLS signature draft, section 2.7.
+
+The public key passes full key validation before the pairing check.
+-/
 def coreVerify
     (pkBytes : ByteArray) (msg : ByteArray) (sigBytes : ByteArray) : Bool :=
   -- Validate pubkey (subgroup, on-curve, not infinity).
@@ -80,13 +104,24 @@ def coreVerify
   | .error _ => false
   | .ok pk => coreVerifyPoint pk msg sigBytes
 
-/-- IRTF `Verify`: thin wrapper over `CoreVerify` for the POP scheme. -/
+/-- `Verify` in the proof-of-possession scheme, section 3.3 of the IRTF BLS signature draft.
+
+In that scheme it is exactly `CoreVerify`.
+-/
 @[inline] def verify
     (pkBytes : ByteArray) (msg : ByteArray) (sigBytes : ByteArray) : Bool :=
   coreVerify pkBytes msg sigBytes
 
-/-- IRTF `AggregateVerify` (POP scheme `CoreAggregateVerify`): verify an
-aggregated signature across `(pubkey, message)` pairs. -/
+/-- Verify one signature over several keys and messages.
+
+This is `CoreAggregateVerify` in the IRTF BLS signature draft, section 2.9.
+
+The proof-of-possession scheme uses it as its `AggregateVerify`, without requiring distinct messages.
+
+```text
+    e(G_1, sig) * prod_i e(-pk_i, H(msg_i)) = 1
+```
+-/
 def aggregateVerify
     (pubkeys : Array ByteArray) (msgs : Array ByteArray) (sigBytes : ByteArray) : Bool := Id.run do
   if pubkeys.isEmpty || pubkeys.size ≠ msgs.size then return false

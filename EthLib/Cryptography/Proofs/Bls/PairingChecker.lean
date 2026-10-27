@@ -1,6 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG2
+
+/-!
+# Proofs: the pairing check is a product of pairings
+
+The check multiplies the Miller values of all pairs and applies one final exponentiation.
+
+Pairs with the point at infinity contribute 1.
+
+So the check passes exactly when the product of the individual pairings is 1.
+-/
 namespace EthLib.Cryptography.Bls
-set_option maxHeartbeats 1000000
 
 /-- The implementation's skipped identity pairs contribute the neutral Miller value. -/
 def checkedMiller (p : G1) (q : G2) : Fp12 :=

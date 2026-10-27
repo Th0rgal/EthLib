@@ -5,7 +5,6 @@ import Mathlib.GroupTheory.Index
 /-! Elementary finite bound for the concrete G1 curve. -/
 namespace EthLib.Cryptography.Bls.G1
 open WeierstrassCurve.Affine
-set_option maxRecDepth 10000
 
 noncomputable def chosenY (x : ZMod Fp.modulus) : ZMod Fp.modulus := by
   classical
@@ -65,4 +64,3 @@ theorem card_point_le : Nat.card curve.toAffine.Point ≤ 2 * Fp.modulus + 1 := 
 
 end EthLib.Cryptography.Bls.G1
 
-#print axioms EthLib.Cryptography.Bls.G1.card_point_le

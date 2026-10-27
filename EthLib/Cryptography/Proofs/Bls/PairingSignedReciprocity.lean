@@ -1,7 +1,16 @@
 import EthLib.Cryptography.Proofs.Bls.PairingG1Reciprocity
 import EthLib.Cryptography.Proofs.Bls.PairingPsi
 
-set_option maxRecDepth 8000
+/-!
+# Proofs: Frobenius and the signed Miller value
+
+The Frobenius map acts on embedded points coordinate by coordinate, and keeps them on the curve.
+
+Slopes, line weights and norms commute with it.
+
+These facts connect the Miller value for the negative parameter to the one for its absolute value.
+-/
+
 
 namespace EthLib.Cryptography.Bls.Embedded
 

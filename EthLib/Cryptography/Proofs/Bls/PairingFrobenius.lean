@@ -7,7 +7,6 @@ Conjugation in the final quadratic tower is the p^6-power Frobenius.
 After final exponentiation it is inversion, as required by negative x.
 -/
 namespace EthLib.Cryptography.Bls
-set_option maxRecDepth 4000
 namespace PairingTower
 
 private theorem v_ne_zero : (Fp6.v : Fp6) ≠ 0 := by

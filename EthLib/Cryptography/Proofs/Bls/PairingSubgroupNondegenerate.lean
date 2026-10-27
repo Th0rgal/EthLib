@@ -41,5 +41,3 @@ theorem pairing_ne_one_of_inSubgroup {p : G1} {q : G2}
 
 end EthLib.Cryptography.Bls
 
-#print axioms EthLib.Cryptography.Bls.pairing_eq_one_iff_of_inSubgroup
-#print axioms EthLib.Cryptography.Bls.pairing_ne_one_of_inSubgroup

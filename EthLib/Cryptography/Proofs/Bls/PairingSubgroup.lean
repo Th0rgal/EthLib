@@ -78,6 +78,3 @@ theorem pairing_mulNat_of_inSubgroup {p : G1} {q : G2}
 
 end EthLib.Cryptography.Bls
 
-#print axioms EthLib.Cryptography.Bls.pairing_add_g1_of_g2_inSubgroup
-#print axioms EthLib.Cryptography.Bls.pairing_add_g2_of_inSubgroup
-#print axioms EthLib.Cryptography.Bls.pairing_mulNat_of_inSubgroup

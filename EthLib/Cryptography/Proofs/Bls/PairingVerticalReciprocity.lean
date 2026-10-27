@@ -1,6 +1,16 @@
 import EthLib.Cryptography.Proofs.Bls.PairingMillerReciprocity
 import EthLib.Cryptography.Proofs.Bls.PairingNegative
 
+/-!
+# Proofs: norms of vertical lines
+
+A vertical line `x - c` vanishes at a point and its negative.
+
+Its norm at a point is computed for each kind of Miller line: vertical, chord, tangent and sum.
+
+These norms make the reciprocity argument close for the full Miller function.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open Polynomial WeierstrassCurve.Affine WeierstrassCurve.Affine.CoordinateRing
 namespace VerticalNorm

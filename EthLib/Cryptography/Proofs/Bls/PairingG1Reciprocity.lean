@@ -1,5 +1,14 @@
 import EthLib.Cryptography.Proofs.Bls.PairingEvaluationReciprocity
-set_option maxHeartbeats 200000
+
+/-!
+# Proofs: points on chords and tangents
+
+A line through two curve points meets the curve in a third point.
+
+This file identifies the three intersection points of each chord and tangent used by the Miller loop.
+
+It also shows when two embedded points denote the same curve point.
+-/
 
 namespace EthLib.Cryptography.Bls.Embedded
 open WeierstrassCurve.Affine

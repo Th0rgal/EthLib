@@ -38,9 +38,15 @@ inductive BlsError where
   | expandMessageOutputTooLong (len : Nat)
   /-- `expand_message_xmd` would need more than 255 hash blocks. -/
   | expandMessageTooManyBlocks (ell : Nat)
-  /-- `expand_message_xmd` was given an empty DST. -/
+  /-- Message expansion was given an empty domain-separation tag.
+
+  RFC 9380, section 3.1, requires tags of nonzero length.
+  -/
   | expandMessageEmptyDst
-  /-- `simple_swu` found neither `g(x₁)` nor `g(x₂)` to be a square in `Fp2`. -/
+  /-- The simplified SWU map found neither candidate to be a square.
+
+  This cannot happen for valid parameters, because one of the two candidates is always a square.
+  -/
   | swuNoSquareFound
 
 /-- Human-readable description, used at the C-ABI boundary. -/

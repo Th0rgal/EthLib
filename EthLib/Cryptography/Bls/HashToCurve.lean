@@ -35,6 +35,7 @@ shortened with SHA-256, and oversized output requests are rejected. -/
 def expandMessageXmd
     (msg : ByteArray) (dst : ByteArray) (lenInBytes : Nat)
     : Except BlsError ByteArray := do
+  -- RFC 9380, section 3.1: tags MUST have nonzero length.
   if dst.size == 0 then
     throw .expandMessageEmptyDst
   let ell := (lenInBytes + sha256OutputSize - 1) / sha256OutputSize
@@ -42,6 +43,7 @@ def expandMessageXmd
     throw (.expandMessageOutputTooLong lenInBytes)
   if ell > 255 then
     throw (.expandMessageTooManyBlocks ell)
+  -- Zero requested bytes: the RFC's output is the empty prefix of the hash blocks.
   if lenInBytes == 0 then
     return ByteArray.empty
   let dst :=
@@ -96,12 +98,19 @@ def hashToFieldFp2
 
 /-! ## `sgn0` and quadratic-residue tests for Fp / Fp2 (RFC 9380 §4.1) -/
 
+/-- Whether a base-field element has a square root. -/
 def isSquare (x : Fp) : Bool := (Fp.sqrt x).isOk
 
+/-- Whether an extension-field element has a square root. -/
 def isSquareFp2 (x : Fp2) : Bool := (Fp2.sqrt x).isOk
 
+/-- The sign of a base-field element: its parity, as RFC 9380, section 4.1, defines it. -/
 def sgn0Fp (x : Fp) : Bool := x.val % 2 == 1
 
+/-- The sign of an extension-field element, as RFC 9380, section 4.1, defines it.
+
+It is the sign of the real part, or of the imaginary part when the real part is zero.
+-/
 def sgn0Fp2 (x : Fp2) : Bool :=
   let s0 := sgn0Fp x.c0
   let z0 := x.c0.isZero
@@ -143,8 +152,9 @@ def simpleSwu (u : Fp2) : Except BlsError (Fp2 × Fp2) :=
       let y := if sgn0Fp2 u = sgn0Fp2 y then y else -y
       .ok (x2, y)
     | .error _ =>
-      -- Mathematically unreachable: Z is a non-square in Fp2, so at
-      -- least one of gx1 or gx2 = Z^3 * u^6 * gx1 is a square.
+      -- Unreachable for these parameters.
+      -- The second candidate satisfies g(x_2) = Z^3 * u^6 * g(x_1), and Z is not a square.
+      -- So when g(x_1) is not a square, g(x_2) is one.
       .error .swuNoSquareFound
 
 /-! ## 3-isogeny map `E' → E` (RFC 9380 Appendix E.3)
@@ -200,7 +210,7 @@ private def k42 : Fp2 := fp2
   0x12
   0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaa99
 
-/-- Degree-three rational isogeny from the SSWU source curve to the BLS twist. -/
+/-- The 3-isogeny from the SSWU curve to the G2 curve, as in RFC 9380, Appendix E.3. -/
 def isoMapG2 (xp yp : Fp2) : Fp2 × Fp2 :=
   let xp2 := xp * xp
   let xp3 := xp2 * xp
@@ -265,7 +275,7 @@ def clearCofactor (P : G2) : G2 :=
   let t3 := G2.add t3 (G2.neg t1)
   G2.add t3 (G2.neg P)
 
-/-- Alias for `clearCofactor` on `G2`. -/
+/-- Cofactor clearing on G2, under the name the proofs use. -/
 abbrev clearCofactorG2 (P : G2) : G2 := clearCofactor P
 
 /-! ## Top-level pipeline -/

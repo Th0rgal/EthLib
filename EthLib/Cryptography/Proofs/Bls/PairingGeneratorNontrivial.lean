@@ -1,6 +1,12 @@
 import EthLib.Cryptography.Proofs.Bls.PairingGeneratorExp8
-set_option maxHeartbeats 0
-set_option maxRecDepth 100000
+
+/-!
+# Proofs: the generator pairing is not 1
+
+The Miller value and the final exponentiation chain give the exact pairing of the two generators.
+
+The kernel then checks that this value is different from 1.
+-/
 namespace EthLib.Cryptography.Bls.PairingCertificate
 open scoped EthLib.Cryptography.Bls.Fp
 theorem pairing_value : pairing G1.generator G2.generator = e4313 := by

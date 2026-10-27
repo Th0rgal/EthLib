@@ -1,8 +1,18 @@
 import EthLib.Cryptography.Proofs.Bls.CofactorCertificateHelpers
+
+/-!
+# Proofs: a G2 test point of order 2713
+
+A certificate point used to bound the size of the G2 curve group.
+
+The file proves, by kernel evaluation, that the point:
+
+- lies on the curve,
+- is not the point at infinity,
+- is killed by multiplication by 2713,
+- is sent to infinity by the cofactor-clearing formula, computed with fuel-bounded multiplication.
+-/
 namespace EthLib.Cryptography.Bls.CofactorCertificate
-set_option maxRecDepth 10000
-set_option maxHeartbeats 2000000
-set_option exponentiation.threshold 1024
 def q2713 : G2 := ⟨⟨Fp.ofNat 2080236299627846373313113152824626203828184878063747179226546086444465609661079682578791473829990551645806380696196, Fp.ofNat 3052341607489697950751387535491288379717343093870489916200010831014739062904699435842761599142350073607242643439346⟩, ⟨Fp.ofNat 138786684136621197043348134664970982874021436480982065149993747241869262426861989119475052140103788150961461939542, Fp.ofNat 259935730919452527837578491626280728785308707164694630602396646913616192390693965039250352290890968067282376421371⟩, Fp2.one⟩
 theorem q2713_valid : G2.Valid q2713 := G2.valid_of_affine_equation (by decide +kernel)
 theorem q2713_nonzero : G2.toPoint q2713 ≠ 0 := by
@@ -13,4 +23,3 @@ theorem q2713_annihilator : 2713 • G2.toPoint q2713 = 0 :=
   nsmul_zero_cert q2713 q2713_valid 2713 13 (by decide +kernel) (by decide +kernel)
 theorem q2713_clear_zero : (clearAux q2713).isInfinity = true := by decide +kernel
 end EthLib.Cryptography.Bls.CofactorCertificate
-#print axioms EthLib.Cryptography.Bls.CofactorCertificate.q2713_annihilator

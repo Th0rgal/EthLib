@@ -1,5 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingMiller
 
+/-!
+# Proofs: invariants of the Miller loop
+
+Each run of the loop keeps its cursor equal to the right multiple of the source point.
+
+The numerator and denominator of its function stay nonzero.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 
 namespace MillerState

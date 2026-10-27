@@ -1,5 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingLine
 
+/-!
+# Proofs: Miller steps follow the curve group law
+
+The doubling and addition steps of the Miller loop move their cursor point.
+
+That move is exactly doubling and addition in the elliptic-curve group over the degree-12 extension.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open WeierstrassCurve.Affine
 

@@ -81,5 +81,3 @@ theorem mul_generator_isInfinity_iff (s : Fr) :
 
 end EthLib.Cryptography.Bls.G1
 
-#print axioms EthLib.Cryptography.Bls.G1.exists_nsmul_generator_of_modulus_smul_eq_zero
-#print axioms EthLib.Cryptography.Bls.G1.exists_mul_generator_of_inSubgroup

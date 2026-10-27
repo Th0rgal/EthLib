@@ -168,7 +168,6 @@ namespace G2
 
 open scoped EthLib.Cryptography.Bls.Fp
 
-set_option maxRecDepth 4000
 
 /-! ## Projective `BEq` properties -/
 
@@ -497,34 +496,42 @@ private theorem ba_ext {a b : ByteArray} (hsz : a.size = b.size)
   rwa [show a.get! i = a.data[i]! from rfl, show b.get! i = b.data[i]! from rfl,
     getElem!_pos a.data i hi1, getElem!_pos b.data i hi2] at this
 
+set_option maxRecDepth 4000 in
 private theorem b0_pos_c (B0 : UInt8) :
     (B0 ||| 0x80 ||| 0x20) &&& 0x80 ≠ 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_pos_i (B0 : UInt8) (hb0 : B0 < 0x20) :
     (B0 ||| 0x80 ||| 0x20) &&& 0x40 = 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_pos_s (B0 : UInt8) :
     (B0 ||| 0x80 ||| 0x20) &&& 0x20 ≠ 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_pos_m (B0 : UInt8) (hb0 : B0 < 0x20) :
     (B0 ||| 0x80 ||| 0x20) &&& 0x1f = B0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_neg_c (B0 : UInt8) :
     (B0 ||| 0x80) &&& 0x80 ≠ 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_neg_i (B0 : UInt8) (hb0 : B0 < 0x20) :
     (B0 ||| 0x80) &&& 0x40 = 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_neg_s (B0 : UInt8) (hb0 : B0 < 0x20) :
     (B0 ||| 0x80) &&& 0x20 = 0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
 
+set_option maxRecDepth 4000 in
 private theorem b0_neg_m (B0 : UInt8) (hb0 : B0 < 0x20) :
     (B0 ||| 0x80) &&& 0x1f = B0 := by
   rcases B0 with ⟨⟨i⟩⟩; revert i hb0; decide
@@ -816,6 +823,7 @@ private theorem tailAllZero_ok (b : ByteArray)
   intro i hi1 hi2
   exact (foldl_allZero b 1 (b.size - 1) true h).2 i hi1 (by omega)
 
+set_option maxRecDepth 4000 in
 private theorem infinityBytes_get!_pos (i : Fin 96) (hi : 1 ≤ i.val) :
     infinityBytes.get! i.val = 0 := by
   revert hi i; decide
@@ -838,6 +846,7 @@ private theorem ba_set!_get!_self (b : ByteArray) {j : Nat} (hj : j < b.size) :
   · subst hij; exact ba_get!_set!_self b _ hj
   · exact ba_get!_set!_ne b _ hij
 
+set_option maxRecDepth 4000 in
 private theorem head_reconstruct (head : UInt8)
     (hc : (head &&& 0x80) ≠ 0) (hi : (head &&& 0x40) = 0) :
     (if (head &&& 0x20) ≠ 0 then (head &&& 0x1f) ||| 0x80 ||| 0x20

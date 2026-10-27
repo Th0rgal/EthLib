@@ -1,6 +1,16 @@
 import EthLib.Cryptography.Proofs.Bls.PairingEvaluation
 import EthLib.Cryptography.Proofs.Bls.PairingLineSymmetry
 
+/-!
+# Proofs: Weil reciprocity for lines
+
+For two functions `f` and `g` on the curve, `f` evaluated on the divisor of `g` equals `g` evaluated on the divisor of `f`.
+
+This file proves it for lines whose intersection with the curve splits, including tangents.
+
+It also covers vertical lines.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open Polynomial WeierstrassCurve.Affine WeierstrassCurve.Affine.CoordinateRing
 

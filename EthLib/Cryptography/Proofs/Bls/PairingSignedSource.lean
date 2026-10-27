@@ -1,6 +1,16 @@
 import EthLib.Cryptography.Proofs.Bls.PairingMillerComposition
 import EthLib.Cryptography.Proofs.Bls.PairingMillerCovariance
 
+/-!
+# Proofs: negating the twisted source point
+
+Points coming from the G2 twist have a parity under conjugation.
+
+Negating such a source point conjugates its Miller value.
+
+G1 points are fixed by conjugation.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 open PairingTower PairingSource
 

@@ -61,10 +61,14 @@ def inverse (a : Fp12) : Fp12 :=
 /-- Conjugation: `c0 + c1·w ↦ c0 − c1·w`. -/
 @[inline] def conjugate (a : Fp12) : Fp12 := ⟨a.c0, -a.c1⟩
 
-/-- Square-and-multiply modular exponentiation. -/
+/-- Raise to a natural power by square-and-multiply.
+
+The exponent halves at each step, so the recursion is well-founded and the kernel can reason about it.
+-/
 def powNat (base : Fp12) (e : Nat) : Fp12 :=
   if e = 0 then one
   else
+    -- base^e = (base^2)^(e / 2), times base when e is odd.
     let half := powNat (base * base) (e / 2)
     if e % 2 = 1 then base * half else half
 termination_by e

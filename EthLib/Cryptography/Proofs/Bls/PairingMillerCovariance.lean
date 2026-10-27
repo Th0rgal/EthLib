@@ -1,5 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG1
 
+/-!
+# Proofs: Miller steps commute with field automorphisms
+
+Applying a field homomorphism to the inputs of a Miller step applies it to both outputs.
+
+So the whole loop commutes with the Frobenius map and with conjugation.
+-/
+
 namespace EthLib.Cryptography.Bls.Embedded
 
 /-- The executable line evaluation commutes with field embeddings. -/

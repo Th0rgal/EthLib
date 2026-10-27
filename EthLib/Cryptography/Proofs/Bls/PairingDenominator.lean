@@ -1,6 +1,18 @@
 import EthLib.Cryptography.Proofs.Bls.PairingSupport
 import EthLib.Cryptography.Proofs.Bls.FinalExponentiation
 
+/-!
+# Proofs: final exponentiation removes the line denominators
+
+The optimal ate formulas omit the vertical-line denominators.
+
+Those denominators lie in the degree-6 subfield.
+
+The final exponent is a multiple of the order of that subfield's multiplicative group.
+
+So final exponentiation sends every nonzero denominator to 1, and omitting them does not change the pairing.
+-/
+
 namespace EthLib.Cryptography.Bls
 open PairingTower Embedded
 

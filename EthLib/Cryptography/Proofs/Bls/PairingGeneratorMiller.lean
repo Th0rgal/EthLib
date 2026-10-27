@@ -1,7 +1,13 @@
 import EthLib.Cryptography.Proofs.Bls.PairingGeneratorMillerSteps
+
+/-!
+# Proofs: the full Miller loop on the two generators
+
+The per-bit steps chain into the value of the whole loop over the BLS parameter.
+
+Each link is one step, so the kernel never evaluates the loop at once.
+-/
 namespace EthLib.Cryptography.Bls.PairingCertificate
-set_option maxRecDepth 100000
-set_option maxHeartbeats 0
 theorem run62 : millerLoop.go blsX R P 1 D61 f61 = f62 := step62.trans (rfl)
 theorem run61 : millerLoop.go blsX R P 2 D60 f60 = f62 := step61.trans (run62)
 theorem run60 : millerLoop.go blsX R P 3 D59 f59 = f62 := step60.trans (run61)

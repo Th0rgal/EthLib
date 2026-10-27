@@ -1,5 +1,14 @@
 import EthLib.Cryptography.Proofs.Bls.PairingEmbedding
-set_option maxHeartbeats 200000
+
+/-!
+# Proofs: the line functions of the Miller loop
+
+The Miller loop computes slopes and line values by explicit formulas.
+
+This file proves that those formulas are the slopes and lines of the short Weierstrass curve `y^2 = x^3 + 4` over the degree-12 extension, as Mathlib defines them.
+
+Every affine point of that curve is nonsingular.
+-/
 
 namespace EthLib.Cryptography.Bls
 namespace Embedded

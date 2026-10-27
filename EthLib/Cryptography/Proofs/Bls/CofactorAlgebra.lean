@@ -11,8 +11,6 @@ They do not assume or prove the Frobenius characteristic polynomial.
 -/
 namespace EthLib.Cryptography.Bls.HashToCurve
 open EthLib.Cryptography.Bls
-set_option maxRecDepth 8000
-set_option maxHeartbeats 1600000
 
 private def c1 : Fp2 := (Fp2.powNat ⟨Fp.one, Fp.one⟩ ((Fp.modulus-1)/3)).inverse
 private def c2 : Fp2 := (Fp2.powNat ⟨Fp.one, Fp.one⟩ ((Fp.modulus-1)/2)).inverse

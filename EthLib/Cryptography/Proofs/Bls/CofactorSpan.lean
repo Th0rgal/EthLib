@@ -118,6 +118,3 @@ theorem candidate_dvd_of_prime_divisors {c : Nat}
 
 end EthLib.Cryptography.Bls.CofactorSpan
 
-#print axioms EthLib.Cryptography.Bls.CofactorSpan.prime_sq_dvd_card_of_independent
-#print axioms EthLib.Cryptography.Bls.CofactorSpan.eq_top_of_elementary_bound
-#print axioms EthLib.Cryptography.Bls.CofactorSpan.candidate_dvd_of_prime_divisors

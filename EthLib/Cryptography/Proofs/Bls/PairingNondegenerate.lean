@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Bls.PairingChecker
 import EthLib.Cryptography.Proofs.Bls.PairingGeneratorNontrivial
+
+/-!
+# Proofs: the pairing is nondegenerate
+
+The pairing of the two generators has order exactly `r`.
+
+So on the generator spans, `e(a * G_1, b * G_2) = 1` exactly when `a = 0` or `b = 0` modulo `r`.
+
+The same holds for the two-pair check that signature verification uses.
+-/
 namespace EthLib.Cryptography.Bls
 open scoped Fr
 

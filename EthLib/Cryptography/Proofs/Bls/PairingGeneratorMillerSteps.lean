@@ -1,6 +1,14 @@
 import EthLib.Cryptography.Proofs.Bls.PairingCertificateHelpers
-set_option maxHeartbeats 0
-set_option maxRecDepth 100000
+
+/-!
+# Proofs: the Miller loop on the two generators, step by step
+
+The generators, embedded in the degree-12 extension, are written out in full.
+
+Each theorem checks one doubling or addition step in the kernel, with its line value.
+
+The values come from running the computation, so they are not checks on their own.
+-/
 namespace EthLib.Cryptography.Bls.PairingCertificate
 open scoped EthLib.Cryptography.Bls.Fp
 def wi2 : Fp12 := ⟨⟨⟨Fp.ofNat 0, Fp.ofNat 0⟩, ⟨Fp.ofNat 0, Fp.ofNat 0⟩, ⟨Fp.ofNat 2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279894, Fp.ofNat 2001204777610833696708894912867952078278441409969503942666029068062015825245418932221343814564507832018947136279893⟩⟩, ⟨⟨Fp.ofNat 0, Fp.ofNat 0⟩, ⟨Fp.ofNat 0, Fp.ofNat 0⟩, ⟨Fp.ofNat 0, Fp.ofNat 0⟩⟩⟩

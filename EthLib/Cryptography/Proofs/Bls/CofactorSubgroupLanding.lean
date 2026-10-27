@@ -77,5 +77,3 @@ theorem clearCofactor_inSubgroup {P : G2} (hP : G2.Valid P) :
 
 end EthLib.Cryptography.Bls.HashToCurve
 
-#print axioms EthLib.Cryptography.Bls.HashToCurve.cofactorHom_modulus_smul
-#print axioms EthLib.Cryptography.Bls.HashToCurve.clearCofactor_inSubgroup
