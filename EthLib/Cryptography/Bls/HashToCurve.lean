@@ -200,7 +200,8 @@ private def k42 : Fp2 := fp2
   0x12
   0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaa99
 
-private def isoMapG2 (xp yp : Fp2) : Fp2 × Fp2 :=
+/-- Degree-three rational isogeny from the SSWU source curve to the BLS twist. -/
+def isoMapG2 (xp yp : Fp2) : Fp2 × Fp2 :=
   let xp2 := xp * xp
   let xp3 := xp2 * xp
   let xNum := k13 * xp3 + k12 * xp2 + k11 * xp + k10

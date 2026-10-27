@@ -6,12 +6,19 @@ import EthLib.Cryptography.Proofs.Bls.Fp6
 import EthLib.Cryptography.Proofs.Bls.Fp12
 import EthLib.Cryptography.Proofs.Bls.G1Group
 import EthLib.Cryptography.Proofs.Bls.G2
+import EthLib.Cryptography.Proofs.Bls.G2Validity
+import EthLib.Cryptography.Proofs.Bls.G2Order
+import EthLib.Cryptography.Proofs.Bls.G2Equiv
+import EthLib.Cryptography.Proofs.Bls.G2Subgroup
 import EthLib.Cryptography.Proofs.Bls.Compress
 import EthLib.Cryptography.Proofs.Bls.G1Msm
 import EthLib.Cryptography.Proofs.Bls.G1Order
 import EthLib.Cryptography.Proofs.Bls.Sha256
 import EthLib.Cryptography.Proofs.Bls.Pairing
 import EthLib.Cryptography.Proofs.Bls.HashToCurve
+import EthLib.Cryptography.Proofs.Bls.Isogeny
+import EthLib.Cryptography.Proofs.Bls.HashToCurveValidity
+import EthLib.Cryptography.Proofs.Bls.PairingInvariant
 import EthLib.Cryptography.Proofs.Bls.Signatures
 
 /-!
