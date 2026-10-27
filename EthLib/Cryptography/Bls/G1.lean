@@ -26,7 +26,21 @@ structure G1 where
   x : Fp
   y : Fp
   z : Fp
-deriving Inhabited, BEq, Repr
+deriving Inhabited, Repr
+
+/-- Projective equivalence on Jacobian coordinates: `(X₁, Y₁, Z₁) == (X₂, Y₂, Z₂)`
+holds iff both represent the point at infinity (`Z = 0`) or `X₁ Z₂² = X₂ Z₁²`
+and `Y₁ Z₂³ = Y₂ Z₁³`. Because distinct triples can represent the same point
+(for example, `G1.zero == default`), this relation is not structural equality
+and must never be given a `LawfulBEq` instance. -/
+instance : BEq G1 where
+  beq p q :=
+    if p.z.isZero then q.z.isZero
+    else if q.z.isZero then false
+    else
+      let pz2 := p.z * p.z
+      let qz2 := q.z * q.z
+      p.x * qz2 == q.x * pz2 && p.y * (qz2 * q.z) == q.y * (pz2 * p.z)
 
 namespace G1
 

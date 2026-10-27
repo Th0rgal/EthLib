@@ -466,4 +466,14 @@ theorem toPoint_mul {P : G1} (h : Valid P) (s : Fr) :
 theorem valid_mul {P : G1} (h : Valid P) (s : Fr) : Valid (mul P s) :=
   valid_mulNat h s.val
 
+/-- Projective `BEq` on `G1` is reflexive. -/
+@[simp] theorem beq_refl (p : G1) : (p == p) = true := by
+  change (if p.z.isZero then p.z.isZero else _) = true
+  by_cases hz : p.z.isZero = true <;> simp [hz]
+
+/-- Both `G1.zero` (`⟨1, 1, 0⟩`) and `default` (`⟨0, 0, 0⟩`) represent the
+point at infinity (`z = 0`), so projective `BEq` equates them. -/
+theorem zero_beq_default : (G1.zero == (default : G1)) = true := by
+  decide
+
 end EthLib.Cryptography.Bls.G1

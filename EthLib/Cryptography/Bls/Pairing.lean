@@ -48,7 +48,7 @@ structure Point where
   x : Fp12
   y : Fp12
   inf : Bool := false
-deriving Inhabited
+deriving Inhabited, BEq, Repr
 
 /-- Lift a `G1` point into `E(Fp12)` via the trivial inclusion. -/
 def ofG1 (p : G1) : Point :=
@@ -81,6 +81,8 @@ def ofG2 (p : G2) : Point :=
 
 end Embedded
 
+abbrev EmbeddedPoint := Embedded.Point
+
 /-! ## Line functions -/
 
 namespace Line
@@ -103,49 +105,55 @@ end Line
 
 /-! ## Miller loop -/
 
-/-- Doubling step: `(T, f) ↦ (2T, f² · l_{T,T}(P))`. -/
-def millerDouble (T : Embedded.Point) (P : Embedded.Point) (f : Fp12)
-    : Embedded.Point × Fp12 :=
-  if T.inf then (T, f * f)
+/-- Doubling step: `(T, P) ↦ (2T, l_{T,T}(P))`. -/
+def millerDouble (T P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
+  if T.inf then
+    (T, Fp12.one)
+  else if T.y == Fp12.zero then
+    let l := if P.inf then Fp12.one else P.x - T.x
+    ({ x := Fp12.zero, y := Fp12.zero, inf := true }, l)
   else
     let m := Line.tangentSlope T.x T.y
-    let nx := m * m - T.x - T.x
-    let ny := m * (T.x - nx) - T.y
-    let line := Line.evalAt T.x T.y m P.x P.y
-    ({ x := nx, y := ny, inf := false }, f * f * line)
+    let x₃ := m * m - T.x - T.x
+    let y₃ := m * (T.x - x₃) - T.y
+    let l := if P.inf then Fp12.one else Line.evalAt T.x T.y m P.x P.y
+    ({ x := x₃, y := y₃, inf := false }, l)
 
-/-- Addition step: `(T, f) ↦ (T + R₀, f · l_{T,R₀}(P))`. -/
-def millerAdd (T R₀ : Embedded.Point) (P : Embedded.Point) (f : Fp12)
-    : Embedded.Point × Fp12 :=
-  if T.inf then (R₀, f)
-  else if R₀.inf then (T, f)
+/-- Addition step: `(T, R₀, P) ↦ (T + R₀, l_{T,R₀}(P))`. -/
+def millerAdd (T R₀ P : EmbeddedPoint) : EmbeddedPoint × Fp12 :=
+  if T.inf then
+    (R₀, Fp12.one)
+  else if R₀.inf then
+    (T, Fp12.one)
+  else if T.x == R₀.x then
+    if T.y == R₀.y then
+      millerDouble T P
+    else
+      let l := if P.inf then Fp12.one else P.x - T.x
+      ({ x := Fp12.zero, y := Fp12.zero, inf := true }, l)
   else
     let m := Line.addSlope T.x T.y R₀.x R₀.y
-    let nx := m * m - T.x - R₀.x
-    let ny := m * (T.x - nx) - T.y
-    let line := Line.evalAt T.x T.y m P.x P.y
-    ({ x := nx, y := ny, inf := false }, f * line)
+    let x₃ := m * m - T.x - R₀.x
+    let y₃ := m * (T.x - x₃) - T.y
+    let l := if P.inf then Fp12.one else Line.evalAt T.x T.y m P.x P.y
+    ({ x := x₃, y := y₃, inf := false }, l)
 
-/-- Walk the bits of `s` from the most-significant down. -/
-partial def millerLoop (s : Nat) (R₀ P : Embedded.Point) : Fp12 := Id.run do
-  if s = 0 then return Fp12.one
-  -- Find the position of the leading bit.
-  let mut highBit := 0
-  let mut x := s
-  while x > 0 do highBit := highBit + 1; x := x / 2
-  -- Iterate from highBit-2 down to 0 (the leading bit is consumed by
-  -- the initial T = R₀ and f = 1).
-  let mut T := R₀
-  let mut f := Fp12.one
-  let mut i : Int := (highBit : Int) - 2
-  while i ≥ 0 do
-    let (T', f') := millerDouble T P f
-    T := T'; f := f'
-    if (s >>> i.toNat) &&& 1 = 1 then
-      let (T'', f'') := millerAdd T R₀ P f
-      T := T''; f := f''
-    i := i - 1
-  return f
+/-- Walk the bits of `n` from the most-significant down. -/
+def millerLoop (n : Nat) (R₀ P : EmbeddedPoint) : Fp12 :=
+  if R₀.inf || P.inf then Fp12.one
+  else
+    let rec go (i : Nat) (T : EmbeddedPoint) (f : Fp12) : Fp12 :=
+      match i with
+      | 0 => f
+      | i' + 1 =>
+        let (T', l₁) := millerDouble T P
+        let f' := f * f * l₁
+        if n.testBit i' then
+          let (T'', l₂) := millerAdd T' R₀ P
+          go i' T'' (f' * l₂)
+        else
+          go i' T' f'
+    go (n.log2) R₀ Fp12.one
 
 /-! ## Final exponentiation -/
 
@@ -161,6 +169,11 @@ def finalExpExponent : Nat :=
 
 /-- The BLS parameter `|x|`. -/
 def blsX : Nat := 0xD201000000010000
+
+/-- Optimal-ate pairing `e(p, q) ∈ Fp12`. -/
+def pairing (p : G1) (q : G2) : Fp12 :=
+  let f := millerLoop blsX (Embedded.ofG2 q) (Embedded.ofG1 p)
+  finalExponentiation f.conjugate
 
 /-- Returns `true` iff `∏ e(P_i, Q_i) = 1`. -/
 def pairingCheck (pairs : Array (G1 × G2)) : Bool := Id.run do
