@@ -12,6 +12,16 @@ attribute [-instance] Lean.Grind.Fin.instPowFinNatOfNeZero
 noncomputable def coefficientPolynomial (p : PolynomialCoeff) : _root_.Polynomial Fr :=
   Polynomial.ofFn p.size (fun i => p[i.val])
 
+/-- Coefficient lookup agrees, including the executable zero default outside the array. -/
+theorem coeff_coefficientPolynomial (p : PolynomialCoeff) (i : Nat) :
+    (coefficientPolynomial p).coeff i = p[i]! := by
+  by_cases hi : i < p.size
+  · rw [coefficientPolynomial, Polynomial.ofFn_coeff_eq_val_of_lt _ hi,
+      getElem!_pos p i hi]
+  · rw [coefficientPolynomial, Polynomial.ofFn_coeff_eq_zero_of_ge _ (Nat.le_of_not_gt hi),
+      getElem!_neg p i hi]
+    rfl
+
 /-- The representation bridge preserves executable evaluation. -/
 theorem eval_coefficientPolynomial (p : PolynomialCoeff) (x : Fr) :
     (coefficientPolynomial p).eval x = evalPolyAt p x := by
