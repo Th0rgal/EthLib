@@ -58,6 +58,7 @@ import EthLib.Cryptography.Proofs.Bls.CofactorGenerator
 import EthLib.Cryptography.Proofs.Bls.Signatures
 import EthLib.Cryptography.Proofs.Bls.CofactorEndomorphism
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG1
+import EthLib.Cryptography.Proofs.Bls.PairingMillerCovariance
 
 /-!
 # `EthLib.Cryptography.Proofs.Bls`
