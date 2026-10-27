@@ -11,6 +11,8 @@ import EthLib.Cryptography.Proofs.Kzg.Core
 import EthLib.Cryptography.Proofs.Kzg.Recovery
 import EthLib.Cryptography.Proofs.Kzg.Cells
 import EthLib.Cryptography.Proofs.Kzg.CeremonyChecks
+import EthLib.Cryptography.Proofs.Kzg.CosetInverse
+import EthLib.Cryptography.Proofs.Kzg.RecoveryCoset
 
 /-!
 # `EthLib.Cryptography.Proofs.Kzg`

@@ -3,6 +3,7 @@ import EthLib.Cryptography.Bls.Compress
 import EthLib.Cryptography.Proofs.Bls.FrZMod
 import EthLib.Cryptography.Proofs.Bls.G1Group
 import EthLib.Cryptography.Proofs.Bls.G1Order
+import EthLib.Cryptography.Proofs.Bls.PairingNondegenerate
 
 /-!
 # Sufficiency of the ceremony pairing checks
@@ -15,11 +16,10 @@ Unlike an exponent-only model, the statement below is phrased over this reposito
 actual `Bls.Fr`, `Bls.G1`, `Bls.G2`, `Bls.G1.mul`, `Bls.G2.mul`, and
 `Bls.pairingCheck` definitions.
 
-The repository does not yet prove bilinearity, non-degeneracy, or scalar-multiplication
-faithfulness for its executable BLS12-381 implementation. Those concrete implementation
-properties are therefore collected in `ConcreteBlsLaws`. The main theorem proves that,
-once those exact missing laws are supplied, the three concrete pairing checks force every
-submitted point to be the expected power of the updated trapdoor.
+The executable signed BLS12-381 pairing is proved bilinear and nondegenerate on the
+prime-order generator spans. `concreteBlsLaws` instantiates the exact checker equivalence.
+The three concrete pairing checks therefore force every submitted point with the stated
+scalar witnesses to be the expected power of the updated trapdoor.
 
 The theorem concerns the exact, unbatched checks. Soundness of random-linear-combination
 batching is a separate probabilistic statement.
@@ -119,8 +119,6 @@ private theorem g2MulNat_def (p : G2) (k : Nat) :
 @[simp] theorem G2.mul_one {p : G2} (hp : p.isInfinity = false) :
     G2.mul p (1 : Fr) = p := by
   change G2.mulNat p 1 = p
-  rw [g2MulNat_def]
-  norm_num
   rw [g2MulNat_def]
   norm_num
   exact G2.add_zero hp
@@ -251,7 +249,8 @@ private theorem g2Mul_one : G2.mul G2.generator (1 : Fr) = G2.generator :=
 
 The G1 and G2 non-infinity laws (`g1Mul_nonzero_iff`, `g1Mul_ne_zero_of_isInfinity_eq_false`,
 and `g2Mul_ne_zero_of_isInfinity_eq_false`) and unit scalar laws (`g1Mul_one`, `g2Mul_one`)
-are proved unconditionally above, leaving only `pairingEq_mul_iff` on `Bls.pairingCheck`. -/
+are proved above. The checker equivalence is instantiated below by `concreteBlsLaws`,
+using the checked signed pairing laws and generator certificate. -/
 structure ConcreteBlsLaws : Prop where
   /-- The single bilinearity/non-degeneracy bridge used for all three checks.
 
@@ -263,12 +262,15 @@ structure ConcreteBlsLaws : Prop where
       (G1.mul G1.generator c) (G2.mul G2.generator d) ↔
       a * b = c * d
 
+/-- The actual signed executable pairing discharges the concrete checker law. -/
+theorem concreteBlsLaws : ConcreteBlsLaws where
+  pairingEq_mul_iff := EthLib.Cryptography.Bls.pairingCheck_generators_iff
+
 /-- **Scalar consequence of all three concrete pairing checks.**
 
 This is the algebraic core of `checksSufficient`, but its hypotheses are already phrased
 in terms of the repository's concrete points and `Bls.pairingCheck`. -/
 theorem exponentChecksSufficient
-    (laws : ConcreteBlsLaws)
     (contribution : Contribution) (transcript : Transcript)
     (checks : Checks contribution transcript)
     (exponents : SubgroupExponents contribution transcript)
@@ -299,7 +301,7 @@ theorem exponentChecksSufficient
         (G2.mul G2.generator 1) := by
       simpa only [g2Mul_one] using h
     have hmul :=
-      (laws.pairingEq_mul_iff exponents.s exponents.x (exponents.a 1) 1).mp h'
+      (concreteBlsLaws.pairingEq_mul_iff exponents.s exponents.x (exponents.a 1) 1).mp h'
     exact hmul.trans (Fin.mul_one (exponents.a 1))
 
   have g1Recurrence : ∀ i (hi : i + 1 < contribution.g1Powers.size),
@@ -316,7 +318,7 @@ theorem exponentChecksSufficient
         (G2.mul G2.generator (exponents.b 1)) := by
       simpa only [g2Mul_one] using h
     have hmul :=
-      (laws.pairingEq_mul_iff
+      (concreteBlsLaws.pairingEq_mul_iff
         (exponents.a (i + 1)) 1 (exponents.a i) (exponents.b 1)).mp h'
     exact
       calc
@@ -337,7 +339,7 @@ theorem exponentChecksSufficient
         (G2.mul G2.generator 1) := by
       simpa only [g1Mul_one, g2Mul_one] using h
     have hmul :=
-      (laws.pairingEq_mul_iff 1 (exponents.b i) (exponents.a i) 1).mp h'
+      (concreteBlsLaws.pairingEq_mul_iff 1 (exponents.b i) (exponents.a i) 1).mp h'
     exact
       calc
         exponents.b i = (1 : Fr) * exponents.b i :=
@@ -442,7 +444,6 @@ of the repository's generator by `(s * x)^i`.
 The non-infinity assumptions correspond to validity of the previous transcript and the
 sequencer's explicit nonzero-public-key check. -/
 theorem checksSufficient
-    (laws : ConcreteBlsLaws)
     (contribution : Contribution) (transcript : Transcript)
     (checks : Checks contribution transcript)
     (exponents : SubgroupExponents contribution transcript)
@@ -454,7 +455,7 @@ theorem checksSufficient
     (∀ i (hi : i < contribution.g2Powers.size),
       contribution.g2Powers[i]'hi =
         G2.mul G2.generator (Fr.powNat (exponents.s * exponents.x) i)) := by
-  have scalarPowers := exponentChecksSufficient laws contribution transcript checks
+  have scalarPowers := exponentChecksSufficient contribution transcript checks
     exponents previousTauNonzero pubkeyNonzero
   constructor
   · intro i hi
@@ -475,7 +476,6 @@ theorem checksSufficient
 /-- The recurrence and cross-group checks force the zeroth submitted G1 exponent to be
 one. -/
 theorem g1ZeroExponentEqOne
-    (laws : ConcreteBlsLaws)
     (contribution : Contribution) (transcript : Transcript)
     (checks : Checks contribution transcript)
     (exponents : SubgroupExponents contribution transcript)
@@ -484,13 +484,12 @@ theorem g1ZeroExponentEqOne
     exponents.a 0 = 1 := by
   have zero_lt_g1 : 0 < contribution.g1Powers.size :=
     Nat.lt_trans (Nat.zero_lt_succ 0) checks.one_lt_g1
-  have h := (exponentChecksSufficient laws contribution transcript checks exponents
+  have h := (exponentChecksSufficient contribution transcript checks exponents
     previousTauNonzero pubkeyNonzero).1 0 zero_lt_g1
   simpa [Fr.powNat_zero] using h
 
 /-- The zeroth concrete G1 point is scalar multiplication of the generator by one. -/
 theorem g1ZeroPointEqGeneratorMulOne
-    (laws : ConcreteBlsLaws)
     (contribution : Contribution) (transcript : Transcript)
     (checks : Checks contribution transcript)
     (exponents : SubgroupExponents contribution transcript)
@@ -498,7 +497,7 @@ theorem g1ZeroPointEqGeneratorMulOne
     (pubkeyNonzero : G2.isInfinity contribution.potPubkey = false) :
     contribution.g1Powers[0]'(Nat.lt_trans (Nat.zero_lt_succ 0) checks.one_lt_g1) =
       G1.mul G1.generator (1 : Fr) := by
-  have h := (checksSufficient laws contribution transcript checks exponents
+  have h := (checksSufficient contribution transcript checks exponents
     previousTauNonzero pubkeyNonzero).1 0
       (Nat.lt_trans (Nat.zero_lt_succ 0) checks.one_lt_g1)
   simpa [Fr.powNat_zero] using h
@@ -506,7 +505,6 @@ theorem g1ZeroPointEqGeneratorMulOne
 /-- No separate G2 recurrence is needed: the concrete cross-group check transfers the
 already-established G1 powers to every supplied G2 point. -/
 theorem g2PowersFollowFromCrossGroup
-    (laws : ConcreteBlsLaws)
     (contribution : Contribution) (transcript : Transcript)
     (checks : Checks contribution transcript)
     (exponents : SubgroupExponents contribution transcript)
@@ -515,7 +513,7 @@ theorem g2PowersFollowFromCrossGroup
     ∀ i (hi : i < contribution.g2Powers.size),
       contribution.g2Powers[i]'hi =
         G2.mul G2.generator (Fr.powNat (exponents.s * exponents.x) i) :=
-  (checksSufficient laws contribution transcript checks exponents
+  (checksSufficient contribution transcript checks exponents
     previousTauNonzero pubkeyNonzero).2
 
 end EthLib.Cryptography.Kzg.CeremonyChecks
