@@ -20,6 +20,7 @@ import EthLib.Cryptography.Proofs.Bls.Isogeny
 import EthLib.Cryptography.Proofs.Bls.HashToCurveValidity
 import EthLib.Cryptography.Proofs.Bls.PairingInvariant
 import EthLib.Cryptography.Proofs.Bls.FinalExponentiation
+import EthLib.Cryptography.Proofs.Bls.PairingProduct
 import EthLib.Cryptography.Proofs.Bls.CofactorAlgebra
 import EthLib.Cryptography.Proofs.Bls.Signatures
 
