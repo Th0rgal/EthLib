@@ -131,5 +131,139 @@ theorem dividePolynomialcoeff_inner_leading_zero (a b : PolynomialCoeff)
   exact cancel_leading_identity _ _ hlead
 
 
+private theorem prepend_zero_identity {R : Type*} [CommRing R] (q x : R) :
+    0 + q * 1 = q + x * 0 := by ring
+
+private theorem prepend_step_identity {R : Type*} [CommRing R]
+    (q x e c p : R) : (q + x * e) + c * (x * p) = q + x * (e + c * p) := by ring
+
+private theorem evalAux_prepend (q : Fr) (a : PolynomialCoeff) (x : Fr) (n : Nat)
+    (hn : n ≤ a.size) :
+    evalCoeffPolyAux (#[q] ++ a) x (n+1) = q + x * evalCoeffPolyAux a x n := by
+  induction n with
+  | zero =>
+    simp only [evalCoeffPolyAux, Fr.powNat_zero, Fr.zero_def, Fr.one_def]
+    rw [getElem!_pos _ 0 (by simp), Array.getElem_append_left (by simp)]
+    change 0 + q * 1 = q + x * 0
+    exact prepend_zero_identity q x
+  | succ n ih =>
+    rw [evalCoeffPolyAux, ih (by omega), evalCoeffPolyAux]
+    have hget : (#[q] ++ a)[n+1]! = a[n]! := by
+      rw [getElem!_pos _ _ (by simp; omega), Array.getElem_append_right (by simp), getElem!_pos _ _ (by omega)]
+      simp
+    rw [hget, Fr.powNat_succ]
+    exact prepend_step_identity _ _ _ _ _
+
+private theorem eval_prepend (q : Fr) (a : PolynomialCoeff) (x : Fr) :
+    evalPolyAt (#[q] ++ a) x = q + x * evalPolyAt a x := by
+  unfold evalPolyAt evalCoeffPoly
+  have hs : (#[q] ++ a).size = a.size + 1 := by simp; omega
+  rw [hs, evalAux_prepend q a x a.size (Nat.le_refl _)]
+
+
+/-- The state of the executable long-division loop after `count` iterations.
+This proof-only name unfolds to the original loop, without changing it. -/
+def divisionLoopState (a b : PolynomialCoeff) (count : Nat) :
+    PolynomialCoeff × PolynomialCoeff :=
+  (List.range count).foldl (init := (a, #[])) fun (r, out) t =>
+    let apos := r.size - 1 - t
+    let shift := apos - (b.size - 1)
+    let quot := r[apos]! * b[b.size - 1]!.inverse
+    (divisionSubtract r b shift quot b.size, #[quot] ++ out)
+
+private theorem divisionLoopState_succ (a b : PolynomialCoeff) (n : Nat) :
+    divisionLoopState a b (n+1) =
+      let st := divisionLoopState a b n
+      let apos := st.1.size - 1 - n
+      let shift := apos - (b.size - 1)
+      let quot := st.1[apos]! * b[b.size - 1]!.inverse
+      (divisionSubtract st.1 b shift quot b.size, #[quot] ++ st.2) := by
+  simp [divisionLoopState, List.range_succ, List.foldl_append]
+
+private theorem divisionLoopState_size (a b : PolynomialCoeff) (n : Nat) :
+    (divisionLoopState a b n).1.size = a.size := by
+  induction n with
+  | zero => rfl
+  | succ n ih => simp [divisionLoopState_succ, size_divisionSubtract, ih]
+
+private theorem outer_step_identity {R : Type*} [CommRing R]
+    (r b q o x p : R) :
+    (r - b*q*p) + (q+x*o)*b*p = r + o*b*(x*p) := by ring
+
+private theorem outer_zero_identity {R : Type*} [CommRing R] (a b p : R) :
+    a + 0*b*p = a := by ring
+
+/-- The actual long-division state preserves the dividend evaluation. At an
+intermediate stage, the accumulated quotient still needs `steps-count`
+leading zero coefficients. -/
+theorem dividePolynomialcoeff_loop_invariant (a b : PolynomialCoeff) (x : Fr)
+    (hb : 0 < b.size) (hab : b.size ≤ a.size) (count : Nat)
+    (hc : count ≤ a.size + 1 - b.size) :
+    evalPolyAt (divisionLoopState a b count).1 x +
+      evalPolyAt (divisionLoopState a b count).2 x * evalPolyAt b x *
+        Fr.powNat x (a.size + 1 - b.size - count) = evalPolyAt a x := by
+  induction count with
+  | zero =>
+    change evalPolyAt a x + Fr.zero * evalPolyAt b x *
+      Fr.powNat x (a.size + 1 - b.size - 0) = evalPolyAt a x
+    exact outer_zero_identity _ _ _
+  | succ n ih =>
+    rw [divisionLoopState_succ]
+    dsimp only
+    rw [divisionLoopState_size]
+    have hshift : a.size - 1 - n - (b.size - 1) = a.size + 1 - b.size - (n+1) := by omega
+    have hfit : a.size - 1 - n - (b.size - 1) + b.size ≤
+        (divisionLoopState a b n).1.size := by rw [divisionLoopState_size]; omega
+    rw [eval_divisionSubtract _ _ _ _ _ _ hfit, eval_prepend, hshift]
+    change (_ - evalPolyAt b x * _ * _) + _ = _
+    have hremain : a.size + 1 - b.size - n = (a.size + 1 - b.size - (n+1)) + 1 := by omega
+    have hi := ih (by omega)
+    rw [hremain, Fr.powNat_succ] at hi
+    exact (outer_step_identity
+      (evalPolyAt (divisionLoopState a b n).1 x)
+      (evalPolyAt b x)
+      ((divisionLoopState a b n).1[a.size - 1 - n]! * b[b.size - 1]!.inverse)
+      (evalPolyAt (divisionLoopState a b n).2 x)
+      x (Fr.powNat x (a.size + 1 - b.size - (n+1)))).trans hi
+
+
+private theorem dividePolynomialcoeff_eq_loop (a b : PolynomialCoeff)
+    (hb : 0 < b.size) (hab : b.size ≤ a.size)
+    (hlead : b[b.size-1]!.isZero = false) :
+    dividePolynomialcoeff a b =
+      .ok (divisionLoopState a b (a.size + 1 - b.size)).2 := by
+  have hb0 : ¬ b.size = 0 := by omega
+  have hnotlt : ¬ a.size < b.size := by omega
+  have hmax : max b.size 1 = b.size := by omega
+  simp only [dividePolynomialcoeff, hb0, hnotlt, hlead, ↓reduceIte,
+    Bool.false_eq_true, Bind.bind, Except.bind, pure, Except.pure,
+    hmax, divisionLoopState, divisionSubtract,
+    ← Array.foldl_toList, Array.toList_range]
+  rfl
+
+private theorem final_identity {R : Type*} [CommRing R] (r q b a : R)
+    (h : r + q*b*1 = a) : a = q*b+r := by linear_combination -h
+
+/-- Successful long division satisfies the quotient/remainder evaluation
+identity, with the remainder equal to the actual final mutable dividend.
+The degree bound for that remainder is a separate property. -/
+theorem dividePolynomialcoeff_eval_identity {a b q : PolynomialCoeff}
+    (hb : 0 < b.size) (hab : b.size ≤ a.size)
+    (h : dividePolynomialcoeff a b = .ok q) (x : Fr) :
+    evalPolyAt a x = evalPolyAt q x * evalPolyAt b x +
+      evalPolyAt (divisionLoopState a b (a.size + 1 - b.size)).1 x := by
+  have hlead : b[b.size-1]!.isZero = false := by
+    cases hz : b[b.size-1]!.isZero with
+    | false => rfl
+    | true =>
+      have he := dividePolynomialcoeff_zero_divisor a b (Or.inr ⟨hab, hz⟩)
+      rw [he] at h
+      cases h
+  rw [dividePolynomialcoeff_eq_loop a b hb hab hlead] at h
+  have hq := Except.ok.inj h
+  have hi := dividePolynomialcoeff_loop_invariant a b x hb hab
+    (a.size + 1 - b.size) (Nat.le_refl _)
+  rw [Nat.sub_self, Fr.powNat_zero, hq] at hi
+  exact final_identity _ _ _ _ hi
 
 end EthLib.Cryptography.Kzg
