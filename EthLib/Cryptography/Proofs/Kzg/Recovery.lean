@@ -146,6 +146,285 @@ theorem leadingCoeff_constructVanishingPolynomial
       rw [hshort_lead] at hval
       exact ⟨hlt', hval, by rw [hval]; rfl⟩
 
+/-- `constructVanishingPolynomial` succeeds whenever fewer than
+`CELLS_PER_EXT_BLOB` cell indices are missing, returning a polynomial of size
+`FIELD_ELEMENTS_PER_EXT_BLOB` with coefficient `Fr.one` at degree
+`missingCellIndices.size * FIELD_ELEMENTS_PER_CELL`. -/
+theorem constructVanishingPolynomial_ok_of_lt
+    {missingCellIndices : Array CellIndex}
+    (h : missingCellIndices.size < CELLS_PER_EXT_BLOB) :
+    ∃ p, constructVanishingPolynomial missingCellIndices = .ok p ∧
+      p.size = FIELD_ELEMENTS_PER_EXT_BLOB ∧
+      p[missingCellIndices.size * FIELD_ELEMENTS_PER_CELL]! = Fr.one := by
+  let rouReduced := computeRootsOfUnity CELLS_PER_EXT_BLOB
+  let xs : Array Fr := missingCellIndices.map fun mci =>
+    rouReduced[BitReversal.reverseBits mci CELLS_PER_EXT_BLOB]!
+  have hxs_lt : xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB := by
+    have h1 : CELLS_PER_EXT_BLOB = 128 := rfl
+    have h2 : FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+    simp only [xs, Array.size_map]
+    omega
+  obtain ⟨shortZeroPoly, hshort, _, _⟩ := vanishingPolynomialcoeff_ok_of_lt hxs_lt
+  let p := (Array.range shortZeroPoly.size).foldl
+    (init := Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+    fun zeroPoly i =>
+      zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!
+  have hp : constructVanishingPolynomial missingCellIndices = .ok p := by
+    unfold constructVanishingPolynomial
+    rw [if_neg (by omega)]
+    simp only [Bind.bind, Except.bind, xs, rouReduced, hshort, pure, Except.pure, p]
+  exact ⟨p, hp, size_constructVanishingPolynomial hp,
+    (leadingCoeff_constructVanishingPolynomial hp).2.1⟩
+
+/-- `constructVanishingPolynomial missingCellIndices` succeeds iff
+`missingCellIndices.size < CELLS_PER_EXT_BLOB`. -/
+theorem constructVanishingPolynomial_ok_iff
+    {missingCellIndices : Array CellIndex} :
+    (∃ p, constructVanishingPolynomial missingCellIndices = .ok p) ↔
+      missingCellIndices.size < CELLS_PER_EXT_BLOB :=
+  ⟨fun ⟨_, hp⟩ => (leadingCoeff_constructVanishingPolynomial hp).1,
+   fun h => let ⟨p, hp, _, _⟩ := constructVanishingPolynomial_ok_of_lt h; ⟨p, hp⟩⟩
+
+private theorem foldl_vanishing_extend_getElem!_all
+    (shortZeroPoly : PolynomialCoeff)
+    (k : Nat) (hk : k ≤ CELLS_PER_EXT_BLOB) (m : Nat) :
+    ((List.range k).foldl
+      (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+      (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero))[m]! =
+      if m % FIELD_ELEMENTS_PER_CELL = 0 ∧ m / FIELD_ELEMENTS_PER_CELL < k then
+        shortZeroPoly[m / FIELD_ELEMENTS_PER_CELL]!
+      else
+        Fr.zero := by
+  have hcell : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+  have hext : FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+  have hcells : CELLS_PER_EXT_BLOB = 128 := rfl
+  induction k with
+  | zero =>
+    simp only [List.range_zero, List.foldl_nil, Nat.not_lt_zero, and_false, ↓reduceIte]
+    by_cases hm : m < FIELD_ELEMENTS_PER_EXT_BLOB
+    · rw [getElem!_pos _ m (by simp [hm]), Array.getElem_replicate]
+    · rw [getElem!_neg _ m (by simp [hm])]; rfl
+  | succ k ih =>
+    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    let prev := (List.range k).foldl
+      (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+      (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+    have hprev_sz : prev.size = FIELD_ELEMENTS_PER_EXT_BLOB :=
+      (foldl_vanishing_extend_size_and_getElem! shortZeroPoly
+        (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) (by simp) k (by omega)).1
+    by_cases hmk : m = k * FIELD_ELEMENTS_PER_CELL
+    · subst hmk
+      rw [getElem!_set!_self prev (k * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[k]!
+        (by rw [hprev_sz, hext, hcell]; omega)]
+      have hmod : (k * FIELD_ELEMENTS_PER_CELL) % FIELD_ELEMENTS_PER_CELL = 0 :=
+        Nat.mul_mod_left k FIELD_ELEMENTS_PER_CELL
+      have hdiv : (k * FIELD_ELEMENTS_PER_CELL) / FIELD_ELEMENTS_PER_CELL = k :=
+        Nat.mul_div_cancel k (by rw [hcell]; decide)
+      rw [if_pos ⟨hmod, by omega⟩, hdiv]
+    · by_cases hm : m < FIELD_ELEMENTS_PER_EXT_BLOB
+      · rw [getElem!_set!_ne prev shortZeroPoly[k]! (Ne.symm hmk) (by rw [hprev_sz]; exact hm),
+            ih (by omega)]
+        have heq_cond : (m % FIELD_ELEMENTS_PER_CELL = 0 ∧ m / FIELD_ELEMENTS_PER_CELL < k) ↔
+            (m % FIELD_ELEMENTS_PER_CELL = 0 ∧ m / FIELD_ELEMENTS_PER_CELL < k + 1) := by
+          constructor
+          · rintro ⟨h1, h2⟩; exact ⟨h1, by omega⟩
+          · rintro ⟨h1, h2⟩
+            refine ⟨h1, ?_⟩
+            rw [hcell] at h1 h2 hmk ⊢
+            omega
+        by_cases hc : m % FIELD_ELEMENTS_PER_CELL = 0 ∧ m / FIELD_ELEMENTS_PER_CELL < k
+        · rw [if_pos hc, if_pos (heq_cond.mp hc)]
+        · rw [if_neg hc, if_neg (fun hc' => hc (heq_cond.mpr hc'))]
+      · rw [getElem!_neg _ m (by rw [size_set!, hprev_sz]; exact hm)]
+        have hnot : ¬ (m % FIELD_ELEMENTS_PER_CELL = 0 ∧ m / FIELD_ELEMENTS_PER_CELL < k + 1) := by
+          rintro ⟨_, hlt⟩
+          rw [hcell] at hlt
+          rw [hext] at hm
+          omega
+        rw [if_neg hnot]
+        rfl
+
+private theorem fr_powNat_mul (x : Fr) (c i : Nat) :
+    Fr.powNat x (i * c) = Fr.powNat (Fr.powNat x c) i := by
+  induction i with
+  | zero =>
+    simp [Fr.powNat_zero]
+  | succ i ih =>
+    have hadd : (i + 1) * c = i * c + c := Nat.succ_mul i c
+    rw [hadd, Fr.powNat_succ]
+    have hpow_add : ∀ a b : Nat, Fr.powNat x (a + b) = Fr.powNat x a * Fr.powNat x b := by
+      intro a b
+      induction b with
+      | zero => rw [Nat.add_zero, Fr.powNat_zero]; exact (Fin.mul_one _).symm
+      | succ b ihb =>
+        rw [Nat.add_succ, Fr.powNat_succ, Fr.powNat_succ, ihb,
+            ← Fr.mul_assoc, Fr.mul_comm x (Fr.powNat x a), Fr.mul_assoc]
+    rw [hpow_add, ih, Fr.mul_comm]
+
+private theorem evalCoeffPolyAux_extend_block
+    (shortZeroPoly : PolynomialCoeff) (k : Nat) (hk : k ≤ CELLS_PER_EXT_BLOB)
+    (x : Fr) (i : Nat) (hi : i < k) :
+    let p := (List.range k).foldl
+      (fun zeroPoly j => zeroPoly.set! (j * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[j]!)
+      (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+    ∀ r : Nat, 1 ≤ r → r ≤ FIELD_ELEMENTS_PER_CELL →
+      evalCoeffPolyAux p x (i * FIELD_ELEMENTS_PER_CELL + r) =
+        evalCoeffPolyAux p x (i * FIELD_ELEMENTS_PER_CELL) +
+          shortZeroPoly[i]! * Fr.powNat (Fr.powNat x FIELD_ELEMENTS_PER_CELL) i := by
+  intro p r hr1 hr2
+  have hcell : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+  obtain ⟨d, rfl⟩ : ∃ d, r = d + 1 := ⟨r - 1, by omega⟩
+  induction d with
+  | zero =>
+    simp only [evalCoeffPolyAux]
+    congr 1
+    have hget := foldl_vanishing_extend_getElem!_all shortZeroPoly k hk (i * FIELD_ELEMENTS_PER_CELL)
+    have hmod : (i * FIELD_ELEMENTS_PER_CELL) % FIELD_ELEMENTS_PER_CELL = 0 :=
+      Nat.mul_mod_left i FIELD_ELEMENTS_PER_CELL
+    have hdiv : (i * FIELD_ELEMENTS_PER_CELL) / FIELD_ELEMENTS_PER_CELL = i :=
+      Nat.mul_div_cancel i (by rw [hcell]; decide)
+    rw [if_pos ⟨hmod, by omega⟩, hdiv] at hget
+    rw [hget, fr_powNat_mul]
+  | succ d ih =>
+    have hstep : i * FIELD_ELEMENTS_PER_CELL + (d + 1 + 1) =
+        (i * FIELD_ELEMENTS_PER_CELL + (d + 1)) + 1 := by omega
+    rw [hstep, evalCoeffPolyAux, ih (by omega) (by omega)]
+    have hget := foldl_vanishing_extend_getElem!_all shortZeroPoly k hk
+      (i * FIELD_ELEMENTS_PER_CELL + (d + 1))
+    have hmod : (i * FIELD_ELEMENTS_PER_CELL + (d + 1)) % FIELD_ELEMENTS_PER_CELL ≠ 0 := by
+      rw [hcell] at hr2 ⊢
+      omega
+    rw [if_neg (fun h => hmod h.1)] at hget
+    have h0mul (y : Fr) : Fr.zero * y = Fr.zero := Fin.zero_mul y
+    have hadd0 (y : Fr) : y + Fr.zero = y := Fin.add_zero y
+    change evalCoeffPolyAux p x (i * FIELD_ELEMENTS_PER_CELL) +
+        shortZeroPoly[i]! * (x.powNat FIELD_ELEMENTS_PER_CELL).powNat i +
+        p[i * FIELD_ELEMENTS_PER_CELL + (d + 1)]! * x.powNat (i * FIELD_ELEMENTS_PER_CELL + (d + 1)) = _
+    rw [hget, h0mul, hadd0]
+
+private theorem evalCoeffPolyAux_extend_prefix
+    (shortZeroPoly : PolynomialCoeff) (k : Nat) (hk : k ≤ CELLS_PER_EXT_BLOB)
+    (x : Fr) :
+    let p := (List.range k).foldl
+      (fun zeroPoly j => zeroPoly.set! (j * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[j]!)
+      (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+    ∀ i ≤ k,
+      evalCoeffPolyAux p x (i * FIELD_ELEMENTS_PER_CELL) =
+        evalCoeffPolyAux shortZeroPoly (Fr.powNat x FIELD_ELEMENTS_PER_CELL) i := by
+  intro p i
+  induction i with
+  | zero => simp [evalCoeffPolyAux]
+  | succ i ih =>
+    intro hi
+    have hmul : (i + 1) * FIELD_ELEMENTS_PER_CELL =
+        i * FIELD_ELEMENTS_PER_CELL + FIELD_ELEMENTS_PER_CELL := Nat.succ_mul i _
+    rw [hmul, evalCoeffPolyAux_extend_block shortZeroPoly k hk x i (by omega)
+        FIELD_ELEMENTS_PER_CELL (by decide) (Nat.le_refl _),
+        ih (by omega), evalCoeffPolyAux]
+
+private theorem evalCoeffPolyAux_extend_tail
+    (shortZeroPoly : PolynomialCoeff) (k : Nat) (hk : k ≤ CELLS_PER_EXT_BLOB)
+    (x : Fr) :
+    let p := (List.range k).foldl
+      (fun zeroPoly j => zeroPoly.set! (j * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[j]!)
+      (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)
+    ∀ d : Nat,
+      evalCoeffPolyAux p x (k * FIELD_ELEMENTS_PER_CELL + d) =
+        evalCoeffPolyAux p x (k * FIELD_ELEMENTS_PER_CELL) := by
+  intro p d
+  have hcell : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+  induction d with
+  | zero => rfl
+  | succ d ih =>
+    rw [Nat.add_succ, evalCoeffPolyAux, ih]
+    have hget := foldl_vanishing_extend_getElem!_all shortZeroPoly k hk
+      (k * FIELD_ELEMENTS_PER_CELL + d)
+    have hnot : ¬ ((k * FIELD_ELEMENTS_PER_CELL + d) % FIELD_ELEMENTS_PER_CELL = 0 ∧
+        (k * FIELD_ELEMENTS_PER_CELL + d) / FIELD_ELEMENTS_PER_CELL < k) := by
+      rintro ⟨_, hlt⟩
+      rw [hcell] at hlt
+      omega
+    rw [if_neg hnot] at hget
+    have h0mul (y : Fr) : Fr.zero * y = Fr.zero := Fin.zero_mul y
+    have hadd0 (y : Fr) : y + Fr.zero = y := Fin.add_zero y
+    change evalCoeffPolyAux p x (k * FIELD_ELEMENTS_PER_CELL) +
+        p[k * FIELD_ELEMENTS_PER_CELL + d]! * x.powNat (k * FIELD_ELEMENTS_PER_CELL + d) = _
+    rw [hget, h0mul, hadd0]
+
+/-- Evaluating the extended vanishing polynomial `p` constructed from
+`missingCellIndices` at `x` equals evaluating the reduced vanishing polynomial
+at `x ^ FIELD_ELEMENTS_PER_CELL`. -/
+theorem evalPolyAt_constructVanishingPolynomial
+    {missingCellIndices : Array CellIndex} {p : PolynomialCoeff}
+    (h : constructVanishingPolynomial missingCellIndices = .ok p) (x : Fr) :
+    ∃ shortZeroPoly,
+      vanishingPolynomialcoeff (missingCellIndices.map fun mci =>
+        (computeRootsOfUnity CELLS_PER_EXT_BLOB)[BitReversal.reverseBits mci CELLS_PER_EXT_BLOB]!) =
+          .ok shortZeroPoly ∧
+      evalPolyAt p x = evalPolyAt shortZeroPoly (Fr.powNat x FIELD_ELEMENTS_PER_CELL) := by
+  have hcell : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+  have hext : FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+  have hcells : CELLS_PER_EXT_BLOB = 128 := rfl
+  simp only [constructVanishingPolynomial, bind, Except.bind, pure, Except.pure] at h
+  split at h
+  · cases h
+  · rename_i hlt
+    have hlt' : missingCellIndices.size < CELLS_PER_EXT_BLOB := Nat.lt_of_not_le hlt
+    split at h
+    · cases h
+    · rename_i shortZeroPoly hshort
+      injection h with hp
+      subst hp
+      obtain ⟨hshort_sz, _⟩ := size_and_leadingCoeff_vanishingPolynomialcoeff hshort
+      simp only [Array.size_map] at hshort_sz
+      have hk : shortZeroPoly.size ≤ CELLS_PER_EXT_BLOB := by omega
+      refine ⟨shortZeroPoly, hshort, ?_⟩
+      have hfold :
+          (Array.range shortZeroPoly.size).foldl
+            (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+            (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) =
+          (List.range shortZeroPoly.size).foldl
+            (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+            (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) := by
+        rw [← Array.foldl_toList, Array.toList_range]
+      unfold evalPolyAt evalCoeffPoly
+      rw [hfold]
+      have hp_sz : ((List.range shortZeroPoly.size).foldl
+          (fun zeroPoly i => zeroPoly.set! (i * FIELD_ELEMENTS_PER_CELL) shortZeroPoly[i]!)
+          (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero)).size =
+          FIELD_ELEMENTS_PER_EXT_BLOB :=
+        (foldl_vanishing_extend_size_and_getElem! shortZeroPoly
+          (Array.replicate FIELD_ELEMENTS_PER_EXT_BLOB Fr.zero) (by simp) shortZeroPoly.size hk).1
+      have hsplit : FIELD_ELEMENTS_PER_EXT_BLOB =
+          shortZeroPoly.size * FIELD_ELEMENTS_PER_CELL +
+            (FIELD_ELEMENTS_PER_EXT_BLOB - shortZeroPoly.size * FIELD_ELEMENTS_PER_CELL) := by
+        rw [hcell, hext]
+        rw [hcells] at hk
+        omega
+      have htail := evalCoeffPolyAux_extend_tail shortZeroPoly shortZeroPoly.size hk x
+        (FIELD_ELEMENTS_PER_EXT_BLOB - shortZeroPoly.size * FIELD_ELEMENTS_PER_CELL)
+      rw [← hsplit] at htail
+      rw [hp_sz, htail,
+          evalCoeffPolyAux_extend_prefix shortZeroPoly shortZeroPoly.size hk x
+            shortZeroPoly.size (Nat.le_refl _)]
+
+/-- `constructVanishingPolynomial missingCellIndices` vanishes at every point `x`
+whose `FIELD_ELEMENTS_PER_CELL`-th power is the bit-reversed root corresponding
+to a missing cell index `mci ∈ missingCellIndices.toList`. -/
+theorem constructVanishingPolynomial_eval_eq_zero
+    {missingCellIndices : Array CellIndex} {p : PolynomialCoeff}
+    (h : constructVanishingPolynomial missingCellIndices = .ok p)
+    {mci : CellIndex} (hmci : mci ∈ missingCellIndices.toList)
+    {x : Fr}
+    (hx : Fr.powNat x FIELD_ELEMENTS_PER_CELL =
+      (computeRootsOfUnity CELLS_PER_EXT_BLOB)[BitReversal.reverseBits mci CELLS_PER_EXT_BLOB]!) :
+    evalPolyAt p x = Fr.zero := by
+  obtain ⟨shortZeroPoly, hshort, heval⟩ := evalPolyAt_constructVanishingPolynomial h x
+  rw [heval]
+  apply vanishingPolynomialcoeff_eval_root hshort
+  rw [Array.toList_map, hx]
+  exact List.mem_map_of_mem hmci
+
 /-- `recoverPolynomialcoeff` rejects mismatched `cellIndices` and `cosetsEvals`
 lengths. -/
 theorem recoverPolynomialcoeff_length_mismatch
@@ -172,6 +451,78 @@ theorem size_recoverPolynomialcoeff
     subst h
     simp [FIELD_ELEMENTS_PER_EXT_BLOB]
     omega
+
+private theorem list_length_filter_lt_iff {α : Type _} (l : List α) (f : α → Bool) :
+    (l.filter f).length < l.length ↔ ∃ x ∈ l, f x = false := by
+  induction l with
+  | nil => simp
+  | cons a as ih =>
+    simp only [List.filter_cons, List.length_cons, List.mem_cons, exists_eq_or_imp]
+    by_cases hfa : f a = true
+    · rw [if_pos hfa, List.length_cons]
+      have hne : f a ≠ false := by rw [hfa]; decide
+      simp [hne, ih]
+    · have hfa' : f a = false := Bool.eq_false_iff.mpr hfa
+      rw [if_neg hfa, hfa']
+      have hle : (as.filter f).length ≤ as.length := List.length_filter_le f as
+      exact ⟨fun _ => Or.inl rfl, fun _ => by omega⟩
+
+private theorem missing_size_lt_iff (cellIndices : Array CellIndex) :
+    ((Array.range CELLS_PER_EXT_BLOB).filter (fun ci => !cellIndices.contains ci)).size <
+        CELLS_PER_EXT_BLOB ↔
+      ∃ ci < CELLS_PER_EXT_BLOB, cellIndices.contains ci = true := by
+  rw [← Array.length_toList, Array.toList_filter, Array.toList_range]
+  have hiff := list_length_filter_lt_iff (List.range CELLS_PER_EXT_BLOB)
+    (fun ci => !cellIndices.contains ci)
+  rw [List.length_range] at hiff
+  rw [hiff]
+  simp only [List.mem_range, Bool.not_eq_false']
+
+/-- `recoverPolynomialcoeff` succeeds whenever `cosetsEvals.size = cellIndices.size`
+and `cellIndices` contains at least one valid cell index `< CELLS_PER_EXT_BLOB`,
+returning a coefficient array of size `FIELD_ELEMENTS_PER_BLOB`. -/
+theorem recoverPolynomialcoeff_ok_of_contains
+    {cellIndices : Array CellIndex} {cosetsEvals : Array CosetEvals}
+    (hlen : cosetsEvals.size = cellIndices.size)
+    (hci : ∃ ci < CELLS_PER_EXT_BLOB, cellIndices.contains ci = true) :
+    ∃ p, recoverPolynomialcoeff cellIndices cosetsEvals = .ok p ∧
+      p.size = FIELD_ELEMENTS_PER_BLOB := by
+  have hmissing :
+      ((Array.range CELLS_PER_EXT_BLOB).filter (fun ci => !cellIndices.contains ci)).size <
+        CELLS_PER_EXT_BLOB :=
+    (missing_size_lt_iff cellIndices).mpr hci
+  obtain ⟨z, hz, _, _⟩ := constructVanishingPolynomial_ok_of_lt hmissing
+  have hok : ∃ p, recoverPolynomialcoeff cellIndices cosetsEvals = .ok p := by
+    unfold recoverPolynomialcoeff
+    rw [if_neg (by omega)]
+    simp only [Bind.bind, Except.bind, pure, Except.pure, hz]
+    exact ⟨_, rfl⟩
+  rcases hok with ⟨p, hp⟩
+  exact ⟨p, hp, size_recoverPolynomialcoeff hp⟩
+
+/-- `recoverPolynomialcoeff cellIndices cosetsEvals` succeeds iff
+`cosetsEvals.size = cellIndices.size` and `cellIndices` contains at least one
+cell index `< CELLS_PER_EXT_BLOB`. -/
+theorem recoverPolynomialcoeff_ok_iff
+    {cellIndices : Array CellIndex} {cosetsEvals : Array CosetEvals} :
+    (∃ p, recoverPolynomialcoeff cellIndices cosetsEvals = .ok p) ↔
+      cosetsEvals.size = cellIndices.size ∧
+        ∃ ci < CELLS_PER_EXT_BLOB, cellIndices.contains ci = true := by
+  constructor
+  · rintro ⟨p, h⟩
+    rw [recoverPolynomialcoeff] at h
+    by_cases hne : cosetsEvals.size ≠ cellIndices.size
+    · rw [if_pos hne] at h
+      exact absurd h (by simp [Bind.bind, Except.bind])
+    · have hlen : cosetsEvals.size = cellIndices.size := Decidable.of_not_not hne
+      rw [if_neg hne] at h
+      obtain ⟨_, _, h⟩ := except_bind_eq_ok h
+      obtain ⟨z, hz, _⟩ := except_bind_eq_ok h
+      have hlt := (leadingCoeff_constructVanishingPolynomial hz).1
+      exact ⟨hlen, (missing_size_lt_iff cellIndices).mp hlt⟩
+  · rintro ⟨hlen, hci⟩
+    obtain ⟨p, hp, _⟩ := recoverPolynomialcoeff_ok_of_contains hlen hci
+    exact ⟨p, hp⟩
 
 /-- `recoverCellsAndKzgProofs` rejects a cells array whose length does
 not match the indices array. -/

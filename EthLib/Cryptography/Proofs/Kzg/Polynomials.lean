@@ -125,6 +125,32 @@ theorem bytesToBlsField_ok {b : Bytes32} {f : Fr}
       rw [hval, bytesBEToNat, bytesBEToNatAux_eq_fromBytesBEAux]
     · cases h
 
+@[simp] theorem size_blsFieldToBytes (x : Fr) :
+    (blsFieldToBytes x).size = BYTES_PER_FIELD_ELEMENT := by
+  simp only [blsFieldToBytes, Fr.toBytesBE, ByteArray.size, Array.size_ofFn,
+    BYTES_PER_FIELD_ELEMENT]
+
+/-- `bytesToBlsField` is a left inverse of `blsFieldToBytes`. -/
+@[simp] theorem bytesToBlsField_blsFieldToBytes (x : Fr) :
+    bytesToBlsField (blsFieldToBytes x) = .ok x := by
+  have heq : blsFieldToBytes x = intToBytesBE x.val 32 := rfl
+  have hlt256 : x.val < 256 ^ 32 :=
+    Nat.lt_trans x.isLt (by decide : Fr.modulus < 256 ^ 32)
+  have hdec : Bls.Fr.bytesBEToNat (blsFieldToBytes x) = x.val := by
+    rw [Bls.Fr.bytesBEToNat, ← bytesBEToNatAux_eq_fromBytesBEAux,
+        ← bytesBEToNat, heq, bytesBEToNat_intToBytesBE_of_lt hlt256]
+  have hfrom : Bls.Fr.fromBytesBE (blsFieldToBytes x) = .ok x := by
+    unfold Bls.Fr.fromBytesBE
+    have hsz : ¬ (blsFieldToBytes x).size ≠ 32 := by
+      simp [size_blsFieldToBytes, BYTES_PER_FIELD_ELEMENT]
+    rw [if_neg hsz]
+    dsimp only []
+    simp only [hdec, dite_eq_ite, if_pos x.isLt, Fin.eta]
+  unfold bytesToBlsField
+  have hsz : ¬ (blsFieldToBytes x).size ≠ BYTES_PER_FIELD_ELEMENT := by
+    simp [size_blsFieldToBytes]
+  rw [if_neg hsz, hfrom]
+
 /-- Drop trailing zero coefficients from a list of field elements. -/
 def stripTrailingZerosList : List Fr → List Fr
   | [] => []
@@ -569,6 +595,109 @@ theorem size_and_leadingCoeff_vanishingPolynomialcoeff
   have hsz' : p.size = xs.size + 1 := by simpa [Nat.add_comm] using hsz
   refine ⟨hsz', ?_⟩
   simpa [hsz'] using hlead
+
+/-- A successful `multiplyPolynomialcoeff` implies the input sizes sum to at
+most `FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem multiplyPolynomialcoeff_le_of_ok {a b p : PolynomialCoeff}
+    (h : multiplyPolynomialcoeff a b = .ok p) :
+    a.size + b.size ≤ FIELD_ELEMENTS_PER_EXT_BLOB :=
+  Decidable.byContradiction fun hgt => by
+    rw [multiplyPolynomialcoeff_too_large (by omega)] at h
+    cases h
+
+/-- `multiplyPolynomialcoeff` succeeds whenever the input sizes sum to at
+most `FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem multiplyPolynomialcoeff_ok_of_le {a b : PolynomialCoeff}
+    (h : a.size + b.size ≤ FIELD_ELEMENTS_PER_EXT_BLOB) :
+    ∃ p, multiplyPolynomialcoeff a b = .ok p ∧
+      p.size = (if a.isEmpty then 1 else max (a.size + b.size - 1) 1) := by
+  have hok : ∃ p, multiplyPolynomialcoeff a b = .ok p := by
+    unfold multiplyPolynomialcoeff
+    rw [if_neg (by omega)]
+    exact ⟨_, rfl⟩
+  rcases hok with ⟨p, hp⟩
+  exact ⟨p, hp, size_multiplyPolynomialcoeff hp⟩
+
+private theorem foldlM_vanishing_bound (xs : List Fr)
+    (init : PolynomialCoeff) (hinit_pos : 0 < init.size)
+    (p : PolynomialCoeff)
+    (h : xs.foldlM (fun q x => multiplyPolynomialcoeff q #[-x, Fr.one]) init = .ok p) :
+    xs = [] ∨ init.size + xs.length < FIELD_ELEMENTS_PER_EXT_BLOB := by
+  induction xs generalizing init with
+  | nil => exact Or.inl rfl
+  | cons x rest ih =>
+    right
+    simp only [List.foldlM_cons, Bind.bind, Except.bind] at h
+    split at h
+    · cases h
+    · rename_i q hq
+      have hle := multiplyPolynomialcoeff_le_of_ok hq
+      have hbin : (#[-x, Fr.one] : PolynomialCoeff).size = 2 := rfl
+      have hq_ne : init.isEmpty = false := by
+        simpa [Array.isEmpty_iff_size_eq_zero] using Nat.ne_of_gt hinit_pos
+      have hq_sz : q.size = init.size + 1 := by
+        have := size_multiplyPolynomialcoeff hq
+        rw [if_neg (by simp [hq_ne])] at this
+        simpa using this
+      rcases ih q (by omega) h with rfl | hlt
+      · simp only [List.length_cons, List.length_nil]
+        omega
+      · simp only [List.length_cons]
+        omega
+
+private theorem foldlM_vanishing_ok (xs : List Fr)
+    (init : PolynomialCoeff) (hinit_pos : 0 < init.size)
+    (hbound : xs = [] ∨ init.size + xs.length < FIELD_ELEMENTS_PER_EXT_BLOB) :
+    ∃ p, xs.foldlM (fun q x => multiplyPolynomialcoeff q #[-x, Fr.one]) init = .ok p := by
+  induction xs generalizing init with
+  | nil => exact ⟨init, rfl⟩
+  | cons x rest ih =>
+    rcases hbound with hnil | hlt
+    · cases hnil
+    · simp only [List.length_cons] at hlt
+      have hle : init.size + (#[-x, Fr.one] : PolynomialCoeff).size ≤ FIELD_ELEMENTS_PER_EXT_BLOB := by
+        have : (#[-x, Fr.one] : PolynomialCoeff).size = 2 := rfl
+        omega
+      obtain ⟨q, hq, hq_sz⟩ := multiplyPolynomialcoeff_ok_of_le hle
+      have hq_ne : init.isEmpty = false := by
+        simpa [Array.isEmpty_iff_size_eq_zero] using Nat.ne_of_gt hinit_pos
+      rw [if_neg (by simp [hq_ne])] at hq_sz
+      have hq_sz' : q.size = init.size + 1 := by simpa using hq_sz
+      obtain ⟨p, hp⟩ := ih q (by omega) (by right; omega)
+      refine ⟨p, ?_⟩
+      simp only [List.foldlM_cons, Bind.bind, Except.bind, hq, hp]
+
+/-- A successful `vanishingPolynomialcoeff xs` requires `xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem vanishingPolynomialcoeff_lt_of_ok {xs : Array Fr} {p : PolynomialCoeff}
+    (h : vanishingPolynomialcoeff xs = .ok p) :
+    xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB := by
+  rw [vanishingPolynomialcoeff, ← Array.foldlM_toList] at h
+  rcases foldlM_vanishing_bound xs.toList #[Fr.one] (by decide) p h with hnil | hlt
+  · have hsz : xs.size = 0 := by simpa using congrArg List.length hnil
+    rw [hsz]
+    decide
+  · simpa [Nat.add_comm] using hlt
+
+/-- `vanishingPolynomialcoeff xs` succeeds with a monic polynomial of size
+`xs.size + 1` whenever `xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem vanishingPolynomialcoeff_ok_of_lt {xs : Array Fr}
+    (h : xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB) :
+    ∃ p, vanishingPolynomialcoeff xs = .ok p ∧
+      p.size = xs.size + 1 ∧ p[xs.size]! = Fr.one := by
+  have hok : ∃ p, vanishingPolynomialcoeff xs = .ok p := by
+    rw [vanishingPolynomialcoeff, ← Array.foldlM_toList]
+    exact foldlM_vanishing_ok xs.toList #[Fr.one] (by decide)
+      (Or.inr (by simpa [Nat.add_comm] using h))
+  rcases hok with ⟨p, hp⟩
+  obtain ⟨hsz, hlead⟩ := size_and_leadingCoeff_vanishingPolynomialcoeff hp
+  exact ⟨p, hp, hsz, hlead⟩
+
+/-- `vanishingPolynomialcoeff xs` succeeds iff `xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem vanishingPolynomialcoeff_ok_iff {xs : Array Fr} :
+    (∃ p, vanishingPolynomialcoeff xs = .ok p) ↔
+      xs.size + 1 < FIELD_ELEMENTS_PER_EXT_BLOB :=
+  ⟨fun ⟨_, hp⟩ => vanishingPolynomialcoeff_lt_of_ok hp,
+   fun h => let ⟨p, hp, _, _⟩ := vanishingPolynomialcoeff_ok_of_lt h; ⟨p, hp⟩⟩
 
 private theorem fr_mul_zero (a : Fr) : a * Fr.zero = Fr.zero :=
   Fin.mul_zero a

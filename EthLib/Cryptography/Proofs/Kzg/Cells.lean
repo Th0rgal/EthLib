@@ -35,6 +35,116 @@ theorem cosetForCell_cellIndexOutOfBounds {cellIndex : CellIndex}
     cosetForCell cellIndex = .error .cellIndexOutOfBounds := by
   simp [cosetForCell, h, Bind.bind, Except.bind]
 
+/-- `cosetForCell` succeeds for every `cellIndex < CELLS_PER_EXT_BLOB`,
+returning a coset of size `FIELD_ELEMENTS_PER_CELL`. -/
+theorem cosetForCell_ok_of_lt {cellIndex : CellIndex}
+    (h : cellIndex < CELLS_PER_EXT_BLOB) :
+    ∃ c, cosetForCell cellIndex = .ok c ∧
+      c.size = FIELD_ELEMENTS_PER_CELL ∧
+      ∀ i < FIELD_ELEMENTS_PER_CELL,
+        c[i]! = (rootsOfUnityBrp FIELD_ELEMENTS_PER_EXT_BLOB)[FIELD_ELEMENTS_PER_CELL * cellIndex + i]! := by
+  let domain := rootsOfUnityBrp FIELD_ELEMENTS_PER_EXT_BLOB
+  let start := FIELD_ELEMENTS_PER_CELL * cellIndex
+  let c : Coset := Array.ofFn (n := FIELD_ELEMENTS_PER_CELL) fun i => domain[start + i.val]!
+  have hc : cosetForCell cellIndex = .ok c := by
+    unfold cosetForCell
+    rw [if_neg (Nat.not_le.mpr h)]
+    rfl
+  refine ⟨c, hc, size_cosetForCell hc, fun i hi => ?_⟩
+  rw [getElem!_pos c i (by simp [c, hi])]
+  simp [c, domain, start]
+
+/-- `cosetForCell cellIndex` succeeds iff `cellIndex < CELLS_PER_EXT_BLOB`. -/
+theorem cosetForCell_ok_iff {cellIndex : CellIndex} :
+    (∃ c, cosetForCell cellIndex = .ok c) ↔ cellIndex < CELLS_PER_EXT_BLOB := by
+  constructor
+  · rintro ⟨c, hc⟩
+    exact Decidable.byContradiction fun hge => by
+      rw [cosetForCell_cellIndexOutOfBounds (Nat.not_lt.mp hge)] at hc
+      cases hc
+  · intro hlt
+    obtain ⟨c, hc, _, _⟩ := cosetForCell_ok_of_lt hlt
+    exact ⟨c, hc⟩
+
+private theorem size_foldl_cosetEvalsToCell (cosetEvals : CosetEvals) (k : Nat) :
+    ((List.range k).foldl (fun bytes i => bytes ++ blsFieldToBytes cosetEvals[i]!)
+      ByteArray.empty).size = k * BYTES_PER_FIELD_ELEMENT := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
+        ByteArray.size_append, ih, size_blsFieldToBytes, Nat.succ_mul]
+
+/-- `cosetEvalsToCell` always produces a byte buffer of size `BYTES_PER_CELL`. -/
+@[simp] theorem size_cosetEvalsToCell (cosetEvals : CosetEvals) :
+    (cosetEvalsToCell cosetEvals).size = BYTES_PER_CELL := by
+  unfold cosetEvalsToCell
+  rw [← Array.foldl_toList, Array.toList_range, size_foldl_cosetEvalsToCell]
+  rfl
+
+private theorem ba_extract_append_of_le {a b : ByteArray} {s e : Nat}
+    (he : e ≤ a.size) :
+    (a ++ b).extract s e = a.extract s e := by
+  have he' : e ≤ a.data.size := he
+  apply ByteArray.ext
+  rw [ByteArray.data_extract, ByteArray.data_extract, ByteArray.data_append,
+      Array.extract_append,
+      Array.extract_empty_of_stop_le_start (show e - a.data.size ≤ s - a.data.size by omega),
+      Array.append_empty]
+
+private theorem ba_extract_append_exact {a b : ByteArray} :
+    (a ++ b).extract a.size (a.size + b.size) = b := by
+  have hsz : a.size = a.data.size := rfl
+  have hbsz : b.size = b.data.size := rfl
+  apply ByteArray.ext
+  rw [ByteArray.data_extract, ByteArray.data_append, hsz, hbsz]
+  simp [-ByteArray.size_data]
+
+private theorem extract_foldl_cosetEvalsToCell (cosetEvals : CosetEvals)
+    (k j : Nat) (hj : j < k) :
+    ((List.range k).foldl (fun bytes i => bytes ++ blsFieldToBytes cosetEvals[i]!)
+      ByteArray.empty).extract
+        (j * BYTES_PER_FIELD_ELEMENT) ((j + 1) * BYTES_PER_FIELD_ELEMENT) =
+      blsFieldToBytes cosetEvals[j]! := by
+  induction k with
+  | zero => exact absurd hj (Nat.not_lt_zero j)
+  | succ k ih =>
+    rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    let pref := (List.range k).foldl
+      (fun bytes i => bytes ++ blsFieldToBytes cosetEvals[i]!) ByteArray.empty
+    have hpref_sz : pref.size = k * BYTES_PER_FIELD_ELEMENT :=
+      size_foldl_cosetEvalsToCell cosetEvals k
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
+    · rw [ba_extract_append_of_le (a := pref)]
+      · exact ih hlt
+      · rw [hpref_sz]
+        exact Nat.mul_le_mul_right BYTES_PER_FIELD_ELEMENT hlt
+    · have h1 : j * BYTES_PER_FIELD_ELEMENT = pref.size := hpref_sz.symm
+      have h2 : (j + 1) * BYTES_PER_FIELD_ELEMENT =
+          pref.size + (blsFieldToBytes cosetEvals[j]!).size := by
+        rw [hpref_sz, size_blsFieldToBytes, Nat.succ_mul]
+      rw [h1, h2, ba_extract_append_exact (a := pref)]
+
+/-- Extracting the `j`-th 32-byte field-element chunk from `cosetEvalsToCell`
+returns `blsFieldToBytes cosetEvals[j]!`. -/
+@[simp] theorem extract_cosetEvalsToCell (cosetEvals : CosetEvals)
+    {j : Nat} (hj : j < FIELD_ELEMENTS_PER_CELL) :
+    (cosetEvalsToCell cosetEvals).extract
+        (j * BYTES_PER_FIELD_ELEMENT) ((j + 1) * BYTES_PER_FIELD_ELEMENT) =
+      blsFieldToBytes cosetEvals[j]! := by
+  unfold cosetEvalsToCell
+  rw [← Array.foldl_toList, Array.toList_range]
+  exact extract_foldl_cosetEvalsToCell cosetEvals FIELD_ELEMENTS_PER_CELL j hj
+
+/-- Deserializing the `j`-th 32-byte field-element chunk from `cosetEvalsToCell`
+recovers `cosetEvals[j]!`. -/
+@[simp] theorem bytesToBlsField_extract_cosetEvalsToCell (cosetEvals : CosetEvals)
+    {j : Nat} (hj : j < FIELD_ELEMENTS_PER_CELL) :
+    bytesToBlsField ((cosetEvalsToCell cosetEvals).extract
+        (j * BYTES_PER_FIELD_ELEMENT) ((j + 1) * BYTES_PER_FIELD_ELEMENT)) =
+      .ok cosetEvals[j]! := by
+  rw [extract_cosetEvalsToCell cosetEvals hj, bytesToBlsField_blsFieldToBytes]
+
 /-- The cell-batch challenge is a canonical field element. -/
 theorem val_computeVerifyCellKzgProofBatchChallenge_lt
     (commitments : Array KZGCommitment)

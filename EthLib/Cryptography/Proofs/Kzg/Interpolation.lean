@@ -11,6 +11,7 @@ The theorem applies to every successful interpolation at pairwise distinct nodes
 -/
 namespace EthLib.Cryptography.Kzg
 open Bls (Fr)
+open EthLib.Cryptography.Kzg.Constants
 open scoped EthLib.Cryptography.Bls.Fr
 
 private theorem eval_singleton (y x : Fr) : evalPolyAt #[y] x = y := by
@@ -172,5 +173,247 @@ theorem interpolatePolynomialcoeff_eval_at_of_distinct
     (fun i hi => List.mem_range.mp hi) hfold, eval_singleton,
     sum_delta _ k _ List.nodup_range, if_pos (List.mem_range.mpr hk)]
   exact Fin.zero_add _
+
+private theorem except_bind_eq_ok_interp {ε α β : Type _} {x : Except ε α}
+    {f : α → Except ε β} {b : β}
+    (h : x >>= f = .ok b) : ∃ a, x = .ok a ∧ f a = .ok b := by
+  cases x with
+  | error e => exact absurd h (by simp [Bind.bind, Except.bind])
+  | ok a => exact ⟨a, rfl, by simpa [Bind.bind, Except.bind] using h⟩
+
+private theorem inner_range_size_and_bound (xs : Array Fr) (i : Nat)
+    (init : PolynomialCoeff) (hinit : init.size = 1) :
+    ∀ (k : Nat) (out : PolynomialCoeff),
+      (List.range k).foldlM (interpolationStep xs i) init = .ok out →
+        out.size = (if i < k then k else k + 1) ∧
+          ∀ j < k, j ≠ i →
+            (if i < j then j else j + 1) + 2 ≤ FIELD_ELEMENTS_PER_EXT_BLOB := by
+  intro k
+  induction k with
+  | zero =>
+    intro out h
+    cases h
+    exact ⟨by simp [hinit], fun j hj => absurd hj (Nat.not_lt_zero j)⟩
+  | succ k ih =>
+    intro out h
+    rw [List.range_succ, List.foldlM_append] at h
+    simp only [List.foldlM_cons, List.foldlM_nil, bind_pure] at h
+    obtain ⟨q, hq, hstep⟩ := except_bind_eq_ok_interp h
+    obtain ⟨hq_sz, hq_bd⟩ := ih q hq
+    by_cases hki : k ≠ i
+    · unfold interpolationStep at hstep
+      rw [if_pos hki] at hstep
+      have hle := multiplyPolynomialcoeff_le_of_ok hstep
+      have hsz := size_multiplyPolynomialcoeff hstep
+      have hq_ne : q.isEmpty = false := by
+        rw [Bool.eq_false_iff, ne_eq, Array.isEmpty_iff_size_eq_zero, hq_sz]
+        split <;> omega
+      rw [if_neg (by simp [hq_ne])] at hsz
+      have hbin : (#[-((xs[i]! - xs[k]!).inverse) * xs[k]!, (xs[i]! - xs[k]!).inverse] :
+          PolynomialCoeff).size = 2 := rfl
+      refine ⟨?_, fun j hj hji => ?_⟩
+      · rw [hsz, hq_sz, hbin]
+        split <;> split <;> omega
+      · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
+        · exact hq_bd j hlt hji
+        · simpa [hq_sz, hbin] using hle
+    · have hkeq : k = i := Decidable.of_not_not hki
+      subst hkeq
+      simp only [interpolationStep, ne_eq, not_true_eq_false, ↓reduceIte,
+        pure, Except.pure, Except.ok.injEq] at hstep
+      subst hstep
+      refine ⟨?_, fun j hj hji => ?_⟩
+      · rw [hq_sz]
+        split <;> split <;> omega
+      · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt | rfl
+        · exact hq_bd j hlt hji
+        · exact absurd rfl hji
+
+private theorem inner_range_ok (xs : Array Fr) (i : Nat) (hi : i < xs.size)
+    (hbound : xs.size < FIELD_ELEMENTS_PER_EXT_BLOB)
+    (init : PolynomialCoeff) (hinit : init.size = 1) :
+    ∀ k ≤ xs.size,
+      ∃ out, (List.range k).foldlM (interpolationStep xs i) init = .ok out ∧
+        out.size = (if i < k then k else k + 1) := by
+  intro k
+  induction k with
+  | zero =>
+    intro _
+    exact ⟨init, rfl, by simp [hinit]⟩
+  | succ k ih =>
+    intro hk
+    obtain ⟨q, hq, hq_sz⟩ := ih (by omega)
+    rw [List.range_succ, List.foldlM_append]
+    simp only [List.foldlM_cons, List.foldlM_nil, bind_pure]
+    by_cases hki : k ≠ i
+    · have hle : q.size +
+          (#[-((xs[i]! - xs[k]!).inverse) * xs[k]!, (xs[i]! - xs[k]!).inverse] :
+            PolynomialCoeff).size ≤ FIELD_ELEMENTS_PER_EXT_BLOB := by
+        have hbin : (#[-((xs[i]! - xs[k]!).inverse) * xs[k]!, (xs[i]! - xs[k]!).inverse] :
+            PolynomialCoeff).size = 2 := rfl
+        rw [hq_sz, hbin]
+        split <;> omega
+      obtain ⟨out, hout, hout_sz⟩ := multiplyPolynomialcoeff_ok_of_le hle
+      have hq_ne : q.isEmpty = false := by
+        rw [Bool.eq_false_iff, ne_eq, Array.isEmpty_iff_size_eq_zero, hq_sz]
+        split <;> omega
+      rw [if_neg (by simp [hq_ne])] at hout_sz
+      refine ⟨out, ?_, ?_⟩
+      · simp only [Bind.bind, Except.bind, hq, interpolationStep, if_pos hki, hout]
+      · have hbin : (#[-((xs[i]! - xs[k]!).inverse) * xs[k]!, (xs[i]! - xs[k]!).inverse] :
+            PolynomialCoeff).size = 2 := rfl
+        rw [hout_sz, hq_sz, hbin]
+        split <;> split <;> omega
+    · have hkeq : k = i := Decidable.of_not_not hki
+      subst hkeq
+      refine ⟨q, ?_, ?_⟩
+      · simp only [Bind.bind, Except.bind, hq, interpolationStep, ne_eq,
+          not_true_eq_false, ↓reduceIte, pure, Except.pure]
+      · rw [hq_sz]
+        split <;> split <;> omega
+
+private theorem outer_range_size_and_bound (xs ys : Array Fr)
+    (hsz : xs.size = ys.size) :
+    ∀ (k : Nat), k ≤ xs.size →
+      ∀ (out : PolynomialCoeff),
+        (List.range k).foldlM (outerStep xs ys) #[Fr.zero] = .ok out →
+        out.size = (if k = 0 then 1 else xs.size) ∧
+          (0 < k → xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB) := by
+  intro k
+  induction k with
+  | zero =>
+    intro _ out h
+    cases h
+    exact ⟨rfl, fun h0 => absurd h0 (Nat.lt_irrefl 0)⟩
+  | succ k ih =>
+    intro hk out h
+    rw [List.range_succ, List.foldlM_append] at h
+    simp only [List.foldlM_cons, List.foldlM_nil, bind_pure] at h
+    obtain ⟨q, hq, hstep⟩ := except_bind_eq_ok_interp h
+    obtain ⟨hq_sz, _⟩ := ih (by omega) q hq
+    unfold outerStep at hstep
+    obtain ⟨summand, hs, hadd⟩ := except_bind_eq_ok_interp hstep
+    simp only [pure, Except.pure, Except.ok.injEq] at hadd
+    subst hadd
+    rw [← Array.foldlM_toList, Array.toList_range, ← hsz] at hs
+    obtain ⟨hs_sz, hs_bd⟩ := inner_range_size_and_bound xs k #[ys[k]!] rfl xs.size summand hs
+    rw [if_pos (by omega)] at hs_sz
+    refine ⟨?_, fun _ => ?_⟩
+    · rw [size_addPolynomialcoeff, hq_sz, hs_sz]
+      by_cases hk0 : k = 0
+      · simp [hk0]; omega
+      · simp [hk0]
+    · by_cases hgt1 : 1 < xs.size
+      · by_cases hk0 : k = 0
+        · subst hk0
+          have hbd := hs_bd (xs.size - 1) (by omega) (by omega)
+          rw [if_pos (by omega)] at hbd
+          omega
+        · have hbd := hs_bd 0 (by omega) (by omega)
+          rw [if_neg (by omega)] at hbd
+          have : Constants.FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+          omega
+      · have : Constants.FIELD_ELEMENTS_PER_EXT_BLOB = 8192 := rfl
+        omega
+
+private theorem outer_range_ok (xs ys : Array Fr)
+    (hsz : xs.size = ys.size)
+    (hbound : xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB) :
+    ∀ (k : Nat), k ≤ xs.size →
+      ∃ out, (List.range k).foldlM (outerStep xs ys) #[Fr.zero] = .ok out ∧
+        out.size = (if k = 0 then 1 else xs.size) := by
+  intro k
+  induction k with
+  | zero =>
+    intro _
+    exact ⟨#[Fr.zero], rfl, rfl⟩
+  | succ k ih =>
+    intro hk
+    obtain ⟨q, hq, hq_sz⟩ := ih (by omega)
+    obtain ⟨summand, hs, hs_sz⟩ :=
+      inner_range_ok xs k (by omega) hbound #[ys[k]!] rfl xs.size (Nat.le_refl _)
+    rw [if_pos (by omega)] at hs_sz
+    have hs_arr : (Array.range ys.size).foldlM (interpolationStep xs k) #[ys[k]!] = .ok summand := by
+      rw [← Array.foldlM_toList, Array.toList_range, ← hsz]
+      exact hs
+    have hstep : outerStep xs ys q k = .ok (addPolynomialcoeff q summand) := by
+      unfold outerStep
+      simp only [Bind.bind, Except.bind, hs_arr, pure, Except.pure]
+    refine ⟨addPolynomialcoeff q summand, ?_, ?_⟩
+    · rw [List.range_succ, List.foldlM_append]
+      simp only [List.foldlM_cons, List.foldlM_nil, Bind.bind,
+        Except.bind, hq, hstep, pure, Except.pure]
+    · rw [size_addPolynomialcoeff, hq_sz, hs_sz]
+      by_cases hk0 : k = 0
+      · simp [hk0]; omega
+      · simp [hk0]
+
+/-- Any successful `interpolatePolynomialcoeff xs ys = .ok out` satisfies
+`xs.size = ys.size`, `xs.size < FIELD_ELEMENTS_PER_EXT_BLOB`, and
+`out.size = max xs.size 1`. -/
+theorem size_interpolatePolynomialcoeff {xs ys out : Array Fr}
+    (h : interpolatePolynomialcoeff xs ys = .ok out) :
+    xs.size = ys.size ∧ xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB ∧
+      out.size = max xs.size 1 := by
+  unfold interpolatePolynomialcoeff at h
+  by_cases hne : xs.size ≠ ys.size
+  · rw [if_pos hne] at h
+    cases h
+  · have hsz : xs.size = ys.size := Decidable.of_not_not hne
+    rw [if_neg hne] at h
+    change (Array.range xs.size).foldlM (outerStep xs ys) #[Fr.zero] = .ok out at h
+    rw [← Array.foldlM_toList, Array.toList_range] at h
+    obtain ⟨hout_sz, hbd⟩ := outer_range_size_and_bound xs ys hsz xs.size (Nat.le_refl _) out h
+    refine ⟨hsz, ?_, ?_⟩
+    · by_cases hx0 : xs.size = 0
+      · rw [hx0]; decide
+      · exact hbd (Nat.pos_of_ne_zero hx0)
+    · rw [hout_sz]
+      split <;> omega
+
+/-- `interpolatePolynomialcoeff xs ys` succeeds whenever `xs.size = ys.size` and
+`xs.size < FIELD_ELEMENTS_PER_EXT_BLOB`, returning a coefficient array of size
+`max xs.size 1`. -/
+theorem interpolatePolynomialcoeff_ok_of_lt {xs ys : Array Fr}
+    (hsz : xs.size = ys.size)
+    (hbound : xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB) :
+    ∃ out, interpolatePolynomialcoeff xs ys = .ok out ∧
+      out.size = max xs.size 1 := by
+  obtain ⟨out, hout, hout_sz⟩ := outer_range_ok xs ys hsz hbound xs.size (Nat.le_refl _)
+  refine ⟨out, ?_, ?_⟩
+  · unfold interpolatePolynomialcoeff
+    rw [if_neg (by omega)]
+    change (Array.range xs.size).foldlM (outerStep xs ys) #[Fr.zero] = .ok out
+    rw [← Array.foldlM_toList, Array.toList_range]
+    exact hout
+  · rw [hout_sz]
+    split <;> omega
+
+/-- `interpolatePolynomialcoeff xs ys` succeeds iff `xs.size = ys.size` and
+`xs.size < FIELD_ELEMENTS_PER_EXT_BLOB`. -/
+theorem interpolatePolynomialcoeff_ok_iff {xs ys : Array Fr} :
+    (∃ out, interpolatePolynomialcoeff xs ys = .ok out) ↔
+      xs.size = ys.size ∧ xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB :=
+  ⟨fun ⟨_, hout⟩ =>
+    let ⟨hsz, hbd, _⟩ := size_interpolatePolynomialcoeff hout
+    ⟨hsz, hbd⟩,
+   fun ⟨hsz, hbd⟩ =>
+    let ⟨out, hout, _⟩ := interpolatePolynomialcoeff_ok_of_lt hsz hbd
+    ⟨out, hout⟩⟩
+
+/-- Unconditional specification of `interpolatePolynomialcoeff`: for equal-sized
+arrays below `FIELD_ELEMENTS_PER_EXT_BLOB` with pairwise distinct nodes `xs`,
+interpolation succeeds with size `max xs.size 1` and evaluates to `ys[k]!` at
+every node `xs[k]!`. -/
+theorem interpolatePolynomialcoeff_spec_of_distinct {xs ys : Array Fr}
+    (hsz : xs.size = ys.size)
+    (hbound : xs.size < Constants.FIELD_ELEMENTS_PER_EXT_BLOB)
+    (hdistinct : ∀ i j, i < xs.size → j < xs.size → i ≠ j → xs[i]! ≠ xs[j]!) :
+    ∃ out, interpolatePolynomialcoeff xs ys = .ok out ∧
+      out.size = max xs.size 1 ∧
+      ∀ k < xs.size, evalPolyAt out xs[k]! = ys[k]! := by
+  obtain ⟨out, hout, hout_sz⟩ := interpolatePolynomialcoeff_ok_of_lt hsz hbound
+  exact ⟨out, hout, hout_sz,
+    fun k hk => interpolatePolynomialcoeff_eval_at_of_distinct hsz hdistinct hout hk⟩
 
 end EthLib.Cryptography.Kzg
