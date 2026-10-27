@@ -32,10 +32,20 @@ namespace EthLib.Cryptography.Kzg.Exports
 
 open EthLib.Cryptography.Kzg
 
-/-- Decode a packed buffer of big-endian `UInt64` indices into an
-`Array Nat`. The Python wrapper passes index arrays this way (8 bytes
-per entry) so we can keep the C ABI to plain `ByteArray`s. -/
+/-- Decode a buffer of packed indices.
+
+Each index is 8 bytes, big-endian:
+
+```text
+    [ index_0: 8 | index_1: 8 | ... | index_(n-1): 8 ]
+```
+
+The Python wrapper packs index arrays this way, so the C exports take only byte arrays.
+
+A length that is not a multiple of 8 is rejected, never truncated.
+-/
 def unpackIndicesBE (b : ByteArray) : Except KzgError (Array Nat) := do
+  -- A partial last index means a malformed buffer.
   if b.size % 8 != 0 then
     throw (.badIndicesBytesSize b.size)
   let n := b.size / 8

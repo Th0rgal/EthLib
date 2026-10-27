@@ -68,7 +68,7 @@ inductive KzgError where
   polynomial for that case is not representable here (and recovery
   requires at least half the cells anyway). -/
   | tooManyMissingCells
-  /-- Packed big-endian `UInt64` indices buffer was not a multiple of 8 bytes. -/
+  /-- A buffer of packed 8-byte indices has a length that is not a multiple of 8. -/
   | badIndicesBytesSize (actual : Nat)
 
 /-- Human-readable description, used at the C-ABI boundary. -/

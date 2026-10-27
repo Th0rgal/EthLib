@@ -32,10 +32,18 @@ abbrev KZGProof      := ByteArray
 
 /-! ## Validation -/
 
-/-- BLS validation, allowing the point at infinity, returning the
-validated `G1` point. -/
+/-- Validate a commitment or a proof and return its point.
+
+This is `validate_kzg_g1` from the Deneb polynomial commitments specification.
+
+It is BLS public-key validation, except that the point at infinity is allowed.
+
+The commitment to the zero polynomial is the point at infinity, so KZG must accept it.
+-/
 def validateKzgG1Point (b : Bytes48) : Except KzgError G1 :=
+  -- The canonical infinity encoding is accepted as the identity.
   if b == G1_POINT_AT_INFINITY then .ok Bls.G1.zero
+  -- Any other input must pass full public-key validation.
   else match Bls.G1.keyValidatePoint b with
   | .ok p    => .ok p
   | .error _ => .error .invalidG1Point
@@ -45,8 +53,12 @@ def validateKzgG1 (b : Bytes48) : Bool :=
   if b == G1_POINT_AT_INFINITY then true
   else (Bls.G1.keyValidate b).isOk
 
-/-- Decompress 48 bytes into a `G1` point in `KzgM`, failing with
-`KzgError.invalidG1Point` on malformed input. -/
+/-- Decompress 48 bytes into a point, or fail with an invalid-point error.
+
+A failed decompression must stop the computation.
+
+Falling back to a default point would silently replace the input with the point at infinity.
+-/
 def uncompressG1 (b : Bytes48) : KzgM G1 :=
   match Bls.G1.uncompress b with
   | .ok g    => pure g
@@ -66,7 +78,12 @@ def computeChallenge (blob : Blob) (commitment : KZGCommitment) : Fr :=
   let data := FIAT_SHAMIR_PROTOCOL_DOMAIN ++ degreePoly ++ blob ++ commitment
   Fr.hashToBlsField data
 
-/-- BLS multi-scalar multiplication in G1, on already-decoded `G1` points. -/
+/-- The linear combination `sum_i scalars_i * points_i` of decoded points.
+
+This is `g1_lincomb` from the Deneb polynomial commitments specification, without the decoding step.
+
+Callers that already hold points skip a compress and decompress round trip.
+-/
 def g1LincombPoints
     (points : Array G1) (scalars : Array Fr) : KzgM G1 := do
   if points.size ≠ scalars.size then
