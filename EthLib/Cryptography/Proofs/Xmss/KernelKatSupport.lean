@@ -1,11 +1,15 @@
 import EthLib.Cryptography.Xmss.Verify
 
 /-!
-# Kernel KAT Support for `Xmss.Verify`
+# Proofs: support for the kernel-checked XMSS known answers
 
-Structural congruence lemmas and list-backed `ByteArray` rewrites that avoid
-kernel reduction blowup through nested `ByteArray.copySlice` calls, together
-with the reference test-vector definitions and intermediate state values.
+The kernel evaluates the verifier on the reference signature.
+
+Evaluated directly, nested byte-array copies make that evaluation explode.
+
+This file rewrites each hash input as a plain list of bytes, which the kernel evaluates quickly.
+
+It also holds the reference key, message and signature, and the intermediate values of their verification.
 -/
 
 namespace EthLib.Cryptography.Xmss
@@ -29,15 +33,18 @@ theorem climbUpto_congr_path (pp : PublicParam) (epoch : Nat)
 
 end Internal
 
+/-- Appending two list-backed byte arrays appends their lists. -/
 theorem byteArray_append_list (a b : List UInt8) :
     (⟨⟨a⟩⟩ : ByteArray) ++ (⟨⟨b⟩⟩ : ByteArray) = ⟨⟨a ++ b⟩⟩ := by
   apply ByteArray.ext
   apply Array.ext'
   simp [ByteArray.data_append]
 
+/-- A packed digest is the byte array of its list of bytes. -/
 theorem packBytes_eq_list {n : Nat} (v : Vector UInt8 n) :
     packBytes v = ⟨⟨v.toList⟩⟩ := rfl
 
+/-- Packing digests one after another concatenates their bytes. -/
 theorem foldl_packBytes_list (l : List Digest) (acc : List UInt8) :
     l.foldl (fun (b : ByteArray) d => b ++ packBytes d) ⟨⟨acc⟩⟩ =
       ⟨⟨acc ++ (l.map Vector.toList).flatten⟩⟩ := by
@@ -47,10 +54,12 @@ theorem foldl_packBytes_list (l : List Digest) (acc : List UInt8) :
     simp only [List.foldl_cons, List.map_cons, List.flatten_cons]
     rw [packBytes_eq_list d, byteArray_append_list, ih (acc ++ d.toList), List.append_assoc]
 
+/-- The tweak hash, with its input built from lists of bytes. -/
 def tweakHashList (pp : PublicParam) (tweakType : TweakType)
     (subPosition index : UInt32) (payload : List UInt8) : Digest :=
   (Hash.Blake2s.hash ⟨⟨(makeTweak tweakType subPosition index).toList ++ pp.toList ++ payload⟩⟩).take DIGEST_LEN
 
+/-- The tweak hash equals its list-based form. -/
 theorem tweakHash_eq_list (pp : PublicParam) (tweakType : TweakType)
     (subPosition index : UInt32) (payload : List UInt8) :
     tweakHash pp tweakType subPosition index ⟨⟨payload⟩⟩ =
@@ -58,6 +67,7 @@ theorem tweakHash_eq_list (pp : PublicParam) (tweakType : TweakType)
   unfold tweakHash tweakHashFull tweakInput tweakHashList
   rw [packBytes_eq_list, packBytes_eq_list, byteArray_append_list, byteArray_append_list]
 
+/-- The one-time public key hashes to its leaf through the list-based tweak hash. -/
 theorem otsLeaf_eq_tweakHashList (pp : PublicParam) (epoch : Epoch) (pk : Vector Digest V) :
     otsLeaf pp epoch pk =
       tweakHashList pp .leaf 0 epoch (pk.toList.map Vector.toList).flatten := by
@@ -65,12 +75,14 @@ theorem otsLeaf_eq_tweakHashList (pp : PublicParam) (epoch : Epoch) (pk : Vector
   have hempty : ByteArray.empty = ⟨⟨[]⟩⟩ := rfl
   rw [hempty, foldl_packBytes_list, List.nil_append, tweakHash_eq_list]
 
+/-- A Merkle node is the list-based tweak hash of its two children. -/
 @[simp] theorem merkleNode_eq_tweakHashList (pp : PublicParam) (level index : Nat) (left right : Digest) :
     merkleNode pp level index left right =
       tweakHashList pp .merkle (UInt32.ofNat level) (UInt32.ofNat index) (left.toList ++ right.toList) := by
   unfold merkleNode
   rw [packBytes_eq_list, packBytes_eq_list, byteArray_append_list, tweakHash_eq_list]
 
+/-- One chain step is the list-based tweak hash of the previous value. -/
 @[simp] theorem chainStep_eq_tweakHashList (pp : PublicParam) (epoch : Epoch) (index : Fin V)
     (step : Fin CHAIN_LENGTH) (value : Digest) :
     chainStep pp epoch index step value =
@@ -78,6 +90,7 @@ theorem otsLeaf_eq_tweakHashList (pp : PublicParam) (epoch : Epoch) (pk : Vector
   unfold chainStep
   rw [packBytes_eq_list, tweakHash_eq_list]
 
+/-- A hash chain walked with the list-based tweak hash. -/
 def chainList (pp : PublicParam) (epoch : Epoch) (index : Fin V)
     (start steps : Nat) (h : start + steps < CHAIN_LENGTH) (value : Digest) :
     Digest :=
@@ -86,6 +99,7 @@ def chainList (pp : PublicParam) (epoch : Epoch) (index : Fin V)
   | s + 1, h => tweakHashList pp .chain (chainPosition index ⟨start + s, by omega⟩) epoch
       (chainList pp epoch index start s (by omega) value).toList
 
+/-- Walking a chain gives the same digest with either form of the hash. -/
 theorem chain_eq_chainList (pp : PublicParam) (epoch : Epoch) (index : Fin V)
     (start steps : Nat) (h : start + steps < CHAIN_LENGTH) (value : Digest) :
     chain pp epoch index start steps h value =
@@ -95,6 +109,7 @@ theorem chain_eq_chainList (pp : PublicParam) (epoch : Epoch) (index : Fin V)
   | succ s ih =>
     simp only [chain, chainList, chainStep_eq_tweakHashList, ih (by omega)]
 
+/-- Recovered chain end `i` walks chain `i` from its signature value to the last position. -/
 theorem otsRecover_getElem_eq_chainList (pp : PublicParam) (epoch : Epoch)
     (tips : Vector Digest V) (x : Vector (Fin CHAIN_LENGTH) V) (i : Nat) (hi : i < V) :
     (otsRecover pp epoch tips x)[i] =
@@ -271,10 +286,16 @@ def exampleSignature : Signature where
 def exampleMessage : Message :=
   Vector.ofFn fun i => UInt8.ofNat i.val ^^^ 0x5a
 
+/-- The 42 digits that the message encodes to at epoch 7.
+
+An intermediate value of verification, computed by the verifier. -/
 def katDigits : Vector (Fin CHAIN_LENGTH) V :=
   #v[1, 3, 5, 4, 4, 5, 6, 7, 7, 1, 6, 4, 4, 6, 7, 4, 7, 0, 7, 7, 6,
      2, 7, 3, 4, 6, 1, 3, 7, 3, 7, 5, 4, 6, 7, 2, 1, 2, 6, 7, 4, 7]
 
+/-- The 42 chain ends recovered from the reference signature.
+
+An intermediate value of verification, computed by the verifier. -/
 def katPublic : Vector Digest V := #v[
   #v[181, 163, 163, 38, 150, 230, 253, 43, 199, 91, 248, 207, 111, 11, 231, 92],
   #v[109, 183, 186, 39, 176, 220, 58, 155, 155, 212, 203, 196, 230, 11, 28, 10],
@@ -319,6 +340,9 @@ def katPublic : Vector Digest V := #v[
   #v[8, 149, 216, 9, 170, 75, 149, 240, 204, 134, 154, 3, 117, 192, 27, 189],
   #v[208, 182, 13, 62, 23, 2, 235, 248, 45, 121, 15, 48, 154, 29, 98, 118]]
 
+/-- The leaf those chain ends hash to.
+
+An intermediate value of verification, computed by the verifier. -/
 def katLeaf : Digest :=
   #v[117, 143, 179, 141, 222, 231, 67, 10, 141, 38, 142, 200, 182, 166, 92, 58]
 

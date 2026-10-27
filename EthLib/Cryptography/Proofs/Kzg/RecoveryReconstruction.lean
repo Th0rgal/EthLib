@@ -3,8 +3,27 @@ import EthLib.Cryptography.Proofs.Kzg.CoefficientPadding
 import EthLib.Cryptography.Proofs.Kzg.ExtendedFft
 import EthLib.Cryptography.Proofs.Kzg.RecoveryCapacity
 
-set_option maxRecDepth 1000
-set_option maxHeartbeats 400000
+/-!
+# Proofs: recovery returns the source polynomial
+
+The endpoint of the recovery proofs.
+
+Given at least 64 distinct cells that match a polynomial with 4096 coefficients, recovery returns that polynomial.
+
+```text
+    cells (at least 64 of 128)
+      |  flatten, with zeros for missing cells
+      v
+    E * Z on the 8192-point domain       (equals P * Z there)
+      |  inverse FFT
+      v
+    coefficients of P * Z
+      |  coset FFT, divide by Z pointwise, inverse coset FFT
+      v
+    coefficients of P, truncated to 4096
+```
+-/
+
 
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)

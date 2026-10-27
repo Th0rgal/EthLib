@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Kzg.RecoveryMasked
 
+/-!
+# Proofs: at most half the cells are missing
+
+Recovery needs at least 64 of the 128 cells.
+
+Given distinct, in-range indices, the known and the missing cells partition the 128 cells.
+
+So 64 known cells leave at most 64 missing ones.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Kzg.Constants
 

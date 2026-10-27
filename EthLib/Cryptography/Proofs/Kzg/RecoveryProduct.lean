@@ -1,6 +1,16 @@
 import EthLib.Cryptography.Proofs.Kzg.Recovery
 import EthLib.Cryptography.Proofs.Kzg.CoefficientPolynomial
 
+/-!
+# Proofs: the product fits the domain
+
+`P` has degree below 4096, and `Z` has degree at most the number of missing positions.
+
+With at most half the cells missing, `deg(P * Z) < 8192`.
+
+So 8192 evaluations determine `P * Z` exactly, and the inverse FFT returns its coefficients.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

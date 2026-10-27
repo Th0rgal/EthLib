@@ -1,10 +1,23 @@
 import EthLib.Cryptography.Proofs.Xmss.KernelKatSupport
 
+/-!
+# Proofs: the Merkle climb, level by level
+
+Theorem `k` pins the node reached after `k` levels of the 32-level climb from the leaf.
+
+Each level hashes one more sibling from the signature path.
+
+The values are intermediate states of verifying the reference signature at epoch 7.
+
+They are computed by the verifier itself, so they are not checks on their own.
+
+They split one large kernel evaluation into small steps.
+
+The check is the final known answer: the reference signature verifies.
+-/
+
 namespace EthLib.Cryptography.Xmss
 open Constants
-
-set_option maxRecDepth 200000
-set_option maxHeartbeats 20000000
 
 theorem katRoot0 : Internal.climbUpto examplePublicKey.publicParam 7 exampleSignature.merklePath 0 (by decide) katLeaf = #v[117, 143, 179, 141, 222, 231, 67, 10, 141, 38, 142, 200, 182, 166, 92, 58] := by
   rfl

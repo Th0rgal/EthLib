@@ -3,11 +3,27 @@ import EthLib.Cryptography.Proofs.Xmss.VerifyChains1
 import EthLib.Cryptography.Proofs.Xmss.VerifyChains2
 import Mathlib.Tactic.IntervalCases
 
+/-!
+# Proofs: the encoding and the recovered leaf
+
+These theorems pin the message encoding and the 42 recovered chain ends.
+
+```text
+    message, randomness  --encode-->  42 digits
+    signature chains     --walk to the end-->  42 chain ends  --hash-->  leaf
+```
+
+The values are intermediate states of verifying the reference signature at epoch 7.
+
+They are computed by the verifier itself, so they are not checks on their own.
+
+They split one large kernel evaluation into small steps.
+
+The check is the final known answer: the reference signature verifies.
+-/
+
 namespace EthLib.Cryptography.Xmss
 open Constants
-
-set_option maxRecDepth 200000
-set_option maxHeartbeats 20000000
 
 theorem katEncodingHash :
     tweakHash examplePublicKey.publicParam .encoding 0 7

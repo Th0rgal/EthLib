@@ -2,6 +2,18 @@ import EthLib.Cryptography.Proofs.Kzg.FftEvaluation
 import Mathlib.Algebra.Polynomial.OfFn
 import Mathlib.Algebra.Polynomial.Eval.Defs
 
+/-!
+# Proofs: coefficient arrays as Mathlib polynomials
+
+The code stores a polynomial as an array of coefficients, lowest degree first.
+
+This file maps that array to a polynomial over the scalar field.
+
+The map preserves coefficients, evaluation and the degree bound.
+
+So facts about degree and roots from Mathlib apply to the arrays the code computes.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open scoped EthLib.Cryptography.Bls.Fr

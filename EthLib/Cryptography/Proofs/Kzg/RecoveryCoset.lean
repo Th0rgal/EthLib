@@ -1,6 +1,18 @@
 import EthLib.Cryptography.Proofs.Kzg.VanishingNonzero
 import EthLib.Cryptography.Proofs.Kzg.FftEvaluation
 
+/-!
+# Proofs: the recovery coset avoids every root
+
+Recovery divides by the vanishing polynomial `Z` on a shifted copy of the domain.
+
+`Z` is zero on missing positions of the unshifted domain.
+
+The shift is a generator of the whole multiplicative group, so no shifted point is a root of unity of the domain.
+
+So `Z` is nonzero at every shifted point, and no division is by zero.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

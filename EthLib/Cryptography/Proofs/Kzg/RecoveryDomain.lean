@@ -1,5 +1,15 @@
 import EthLib.Cryptography.Proofs.Kzg.RecoveryCoset
 
+/-!
+# Proofs: missing cells are roots of the vanishing polynomial
+
+Cells live in bit-reversed order, while FFT positions are in natural order.
+
+This file connects the two orders.
+
+So every FFT position that belongs to a missing cell is a root of the vanishing polynomial.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

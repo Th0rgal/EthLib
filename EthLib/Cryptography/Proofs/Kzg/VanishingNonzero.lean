@@ -1,6 +1,16 @@
 import EthLib.Cryptography.Proofs.Kzg.Recovery
 import EthLib.Cryptography.Proofs.Kzg.CosetInverse
 
+/-!
+# Proofs: the vanishing polynomial has no extra roots
+
+The vanishing polynomial is the product of `(x - z_i)` over its chosen roots `z_i`.
+
+A product in a field is zero only if one factor is.
+
+So it is nonzero at every point outside its chosen roots.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

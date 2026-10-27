@@ -1,10 +1,21 @@
 import EthLib.Cryptography.Proofs.Xmss.KernelKatSupport
 
+/-!
+# Proofs: recovered chain ends 14 to 27
+
+Each theorem pins the end of one hash chain, recovered from the signature.
+
+The values are intermediate states of verifying the reference signature at epoch 7.
+
+They are computed by the verifier itself, so they are not checks on their own.
+
+They split one large kernel evaluation into small steps.
+
+The check is the final known answer: the reference signature verifies.
+-/
+
 namespace EthLib.Cryptography.Xmss
 open Constants
-
-set_option maxRecDepth 200000
-set_option maxHeartbeats 20000000
 
 theorem katChain14 : (otsRecover examplePublicKey.publicParam 7 exampleSignature.chainElements katDigits)[14] = #v[65, 117, 119, 35, 236, 236, 119, 220, 177, 158, 206, 111, 90, 178, 1, 140] := by
   rw [otsRecover_getElem_eq_chainList]; decide +kernel

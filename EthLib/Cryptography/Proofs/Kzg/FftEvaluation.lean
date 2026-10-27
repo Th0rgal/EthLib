@@ -1,5 +1,19 @@
 import EthLib.Cryptography.Proofs.Kzg.CosetInverse
 
+/-!
+# Proofs: FFT outputs are polynomial evaluations
+
+Entry `i` of the forward FFT is the polynomial evaluated at `w^i`.
+
+```text
+    fft(c)[i] = sum_j c_j * (w^i)^j = p(w^i)
+```
+
+The coset FFT first scales coefficient `j` by `k^j`.
+
+That is the same as evaluating at `k * w^i`.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

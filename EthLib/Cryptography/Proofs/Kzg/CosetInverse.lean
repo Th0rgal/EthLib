@@ -1,7 +1,20 @@
 import EthLib.Cryptography.Proofs.Kzg.FftInverse
 import EthLib.Cryptography.Proofs.Kzg.Domain
 
-set_option maxHeartbeats 800000
+/-!
+# Proofs: the inverse coset FFT
+
+A coset FFT evaluates a polynomial on the domain shifted by a constant `k`.
+
+```text
+    coefficients c_i  --shift by k^i-->  FFT  ==  evaluations at k * w^i
+```
+
+The inverse transform undoes the FFT and then the shift.
+
+So both round trips are the identity, including on the 8192-point recovery domain.
+-/
+
 
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)

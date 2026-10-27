@@ -1,5 +1,16 @@
 import EthLib.Cryptography.Proofs.Kzg.CoefficientPolynomial
 
+/-!
+# Proofs: zero-padding a coefficient array
+
+Recovery works on 8192 coefficients and returns the first 4096.
+
+Padding with zeros and truncating again are both exact.
+
+- Padding keeps every coefficient and the evaluation at every point.
+- Truncating a padded array gives back the original.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open scoped EthLib.Cryptography.Bls.Fr

@@ -41,8 +41,6 @@ One honest signature, pinned byte for byte.
 
 It fixes every hash the verifier makes, not just its accept or reject. -/
 
-set_option maxRecDepth 200000
-set_option maxHeartbeats 20000000
 
 /-- The reference signature verifies. -/
 theorem verify_known_answer :

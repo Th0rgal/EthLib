@@ -1,5 +1,17 @@
 import EthLib.Cryptography.Proofs.Kzg.FftEvaluation
 
+/-!
+# Proofs: the FFT on the extended domain
+
+Recovery runs FFTs over the 8192 roots of unity of the extended blob.
+
+This file instantiates the general FFT facts at that domain.
+
+- The forward FFT evaluates the polynomial at each root.
+- The coset FFT evaluates it at each root times the recovery shift.
+- The inverse FFT gives back the coefficients.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
 open EthLib.Cryptography.Kzg.Constants

@@ -2,6 +2,22 @@ import EthLib.Cryptography.Proofs.Kzg.Polynomials
 import EthLib.Cryptography.Proofs.Bls.FrZMod
 import Mathlib.Tactic
 
+/-!
+# Proofs: polynomial long division
+
+The code divides two coefficient arrays the way the specification does.
+
+Each step cancels the current leading coefficient of the dividend.
+
+The proofs track one fact through both loops:
+
+```text
+    a(x) = q(x) * b(x) + r(x)      at every evaluation point x
+```
+
+At the end the remainder has degree below the divisor.
+-/
+
 namespace EthLib.Cryptography.Kzg
 open Bls (Fr)
 open scoped EthLib.Cryptography.Bls.Fr
