@@ -1,5 +1,6 @@
 import EthLib.Cryptography.Proofs.Bls.HashToCurveValidity
 import EthLib.Cryptography.Proofs.Bls.G2Subgroup
+import EthLib.Cryptography.Proofs.Bls.PairingInvariant
 
 /-!
 # Algebra of the concrete cofactor-clearing maps
@@ -60,6 +61,129 @@ theorem psi2_cube_noninf (P : G2) (hz : P.z.isZero = false) :
   congr 1
   have h := congrArg (fun c : Fp2 => c * P.toAffine.1) c12_cube
   simpa only [pow_succ, pow_zero, one_mul, mul_assoc] using h
+
+private theorem infinity_eq_of_beq {p q : G2} (h : (p == q) = true) :
+    p.z.isZero = q.z.isZero := by
+  change (if p.z.isZero then q.z.isZero else if q.z.isZero then false else _) = true at h
+  by_cases hp : p.z.isZero = true
+  · rw [if_pos hp] at h
+    exact hp.trans h.symm
+  · rw [if_neg hp] at h
+    by_cases hq : q.z.isZero = true
+    · rw [if_pos hq] at h
+      cases h
+    · exact (Bool.eq_false_iff.mpr hp).trans (Bool.eq_false_iff.mpr hq).symm
+
+/-- The concrete Frobenius map respects projective equality, including infinity. -/
+theorem psi_beq_of_beq {p q : G2} (h : (p == q) = true) :
+    (psi p == psi q) = true := by
+  have hi := infinity_eq_of_beq h
+  by_cases hp : p.z.isZero = true
+  · have hq := hi.symm.trans hp
+    simpa [psi, hp, hq] using h
+  · have hq : ¬q.z.isZero = true := fun hq => hp (hi.trans hq)
+    have he : psi p = psi q := by
+      simp only [psi, hp, hq, Bool.false_eq_true, ↓reduceIte]
+      rw [G2.toAffine_eq_of_beq h]
+    rw [he]
+    exact G2.beq_refl _
+
+/-- On valid representatives `psi` depends only on the elliptic-curve group element. -/
+theorem psi_toPoint_eq_of_toPoint_eq {p q : G2} (hp : G2.Valid p) (hq : G2.Valid q)
+    (h : G2.toPoint p = G2.toPoint q) :
+    G2.toPoint (psi p) = G2.toPoint (psi q) :=
+  (G2.beq_eq_true_iff_toPoint_eq (psi_valid hp) (psi_valid hq)).mp
+    (psi_beq_of_beq ((G2.beq_eq_true_iff_toPoint_eq hp hq).mpr h))
+
+private theorem affine_neg {p : G2} (hz : p.z.isZero = false) :
+    (G2.neg p).toAffine = (p.toAffine.1, -p.toAffine.2) := by
+  simp only [G2.toAffine, G2.neg, hz, Bool.false_eq_true, ↓reduceIte]
+  rw [neg_mul]
+
+/-- The concrete `psi` map commutes with negation on representatives. -/
+theorem psi_neg (p : G2) : psi (G2.neg p) = G2.neg (psi p) := by
+  by_cases hz : p.z.isZero = true
+  · simp [psi, G2.neg, hz]
+  · have hf : p.z.isZero = false := Bool.eq_false_iff.mpr hz
+    have hnf : (G2.neg p).z.isZero = false := hf
+    simp only [psi, hf, hnf, Bool.false_eq_true, ↓reduceIte]
+    rw [affine_neg hf]
+    change (⟨_, _ * Fp2.conjugate (-p.toAffine.2), _⟩ : G2) = ⟨_, -(_ * _), _⟩
+    rw [Fp2.conjugate_neg, mul_neg]
+    rfl
+
+/-- On valid points `psi` commutes with group negation. -/
+theorem psi_toPoint_neg {p : G2} (hp : G2.Valid p) :
+    G2.toPoint (psi (G2.neg p)) = -G2.toPoint (psi p) := by
+  rw [psi_neg, G2.toPoint_neg (psi_valid hp)]
+
+/-- The optimized `psi2` map respects projective equality, including infinity. -/
+theorem psi2_beq_of_beq {p q : G2} (h : (p == q) = true) :
+    (psi2 p == psi2 q) = true := by
+  rw [← psi_psi_eq_psi2 p, ← psi_psi_eq_psi2 q]
+  exact psi_beq_of_beq (psi_beq_of_beq h)
+
+/-- On valid representatives `psi2` depends only on the elliptic-curve group element. -/
+theorem psi2_toPoint_eq_of_toPoint_eq {p q : G2} (hp : G2.Valid p) (hq : G2.Valid q)
+    (h : G2.toPoint p = G2.toPoint q) :
+    G2.toPoint (psi2 p) = G2.toPoint (psi2 q) := by
+  rw [← psi_psi_eq_psi2 p, ← psi_psi_eq_psi2 q]
+  exact psi_toPoint_eq_of_toPoint_eq (psi_valid hp) (psi_valid hq)
+    (psi_toPoint_eq_of_toPoint_eq hp hq h)
+
+/-- On valid points `psi2` commutes with group negation. -/
+theorem psi2_toPoint_neg {p : G2} (hp : G2.Valid p) :
+    G2.toPoint (psi2 (G2.neg p)) = -G2.toPoint (psi2 p) := by
+  rw [psi2_neg, G2.toPoint_neg (psi2_valid hp)]
+
+/-- Three applications of `psi2` are projectively equal to `G2.neg P` for every `P`. -/
+theorem psi2_cube_beq_neg (P : G2) :
+    (psi2 (psi2 (psi2 P)) == G2.neg P) = true := by
+  cases hz : P.z.isZero with
+  | true =>
+    have hpsi2 : psi2 P = P := by simp [psi2, hz]
+    rw [hpsi2, hpsi2, hpsi2]
+    change (if P.z.isZero then (G2.neg P).z.isZero else _) = true
+    simp [G2.neg, hz]
+  | false =>
+    rw [psi2_cube_noninf P hz]
+    have hnz : (G2.neg P).z.isZero = false := hz
+    have hPz : P.z ≠ 0 := fun h0 => by
+      rw [Fp2.isZero_iff.mpr h0] at hz
+      cases hz
+    change (if Fp2.one.isZero then (G2.neg P).z.isZero
+      else if (G2.neg P).z.isZero then false
+      else (P.toAffine.1 * (P.z * P.z) == P.x * (Fp2.one * Fp2.one) &&
+        (-P.toAffine.2) * ((P.z * P.z) * P.z) == (-P.y) * ((Fp2.one * Fp2.one) * Fp2.one))) = true
+    rw [if_neg (by decide), if_neg (by simp [hnz])]
+    unfold G2.toAffine
+    rw [hz]
+    dsimp only
+    rw [Bool.and_eq_true, _root_.beq_iff_eq, _root_.beq_iff_eq]
+    change P.x * (P.z⁻¹ * P.z⁻¹) * (P.z * P.z) = P.x * (1 * 1) ∧
+      -(P.y * (P.z⁻¹ * P.z⁻¹ * P.z⁻¹)) * (P.z * P.z * P.z) = -P.y * (1 * 1 * 1)
+    constructor <;> field_simp
+
+/-- On valid twist points, three applications of `psi2` act as group negation. -/
+theorem psi2_cube_toPoint {P : G2} (hP : G2.Valid P) :
+    G2.toPoint (psi2 (psi2 (psi2 P))) = -G2.toPoint P := by
+  have hbeq := psi2_cube_beq_neg P
+  have heq := (G2.beq_eq_true_iff_toPoint_eq
+    (psi2_valid (psi2_valid (psi2_valid hP))) (G2.valid_neg hP)).mp hbeq
+  rw [heq, G2.toPoint_neg hP]
+
+/-- Six applications of `psi` are projectively equal to `G2.neg P`. -/
+theorem psi_six_beq_neg (P : G2) :
+    (psi (psi (psi (psi (psi (psi P))))) == G2.neg P) = true := by
+  rw [psi_psi_eq_psi2, psi_psi_eq_psi2, psi_psi_eq_psi2]
+  exact psi2_cube_beq_neg P
+
+/-- On valid twist points, six applications of `psi` act as group negation
+($\psi^6(P) = -P$). -/
+theorem psi_six_toPoint {P : G2} (hP : G2.Valid P) :
+    G2.toPoint (psi (psi (psi (psi (psi (psi P)))))) = -G2.toPoint P := by
+  rw [psi_psi_eq_psi2, psi_psi_eq_psi2, psi_psi_eq_psi2]
+  exact psi2_cube_toPoint hP
 
 /-- The negative BLS scalar is represented by the group scalar action. -/
 theorem toPoint_mulNegX {P : G2} (hP : G2.Valid P) :

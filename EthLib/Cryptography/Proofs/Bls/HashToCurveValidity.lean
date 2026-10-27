@@ -104,4 +104,58 @@ theorem hashToG2_valid {msg dst : ByteArray} {P : G2}
         subst P
         exact clearCofactor_valid (G2.valid_add
           (simpleSwu_isoMapG2_valid h0) (simpleSwu_isoMapG2_valid h1))
+
+private theorem expandMessageXmd_256_ok {msg dst : ByteArray}
+    (hdst : dst.size ≠ 0) :
+    ∃ uniform, expandMessageXmd msg dst 256 = .ok uniform := by
+  unfold expandMessageXmd
+  have h0 : (dst.size == 0) = false := beq_eq_false_iff_ne.mpr hdst
+  rw [h0]
+  dsimp only [sha256OutputSize]
+  rw [if_neg Bool.false_ne_true, if_neg (by decide), if_neg (by decide), if_neg (by decide),
+      Std.Legacy.Range.forIn_eq_forIn_range']
+  exact ⟨_, rfl⟩
+
+private theorem hashToFieldFp2_two_ok {msg dst : ByteArray}
+    (hdst : dst.size ≠ 0) :
+    ∃ us, hashToFieldFp2 msg dst 2 = .ok us := by
+  obtain ⟨uniform, hunif⟩ := expandMessageXmd_256_ok hdst
+  unfold hashToFieldFp2
+  dsimp only
+  rw [hunif]
+  dsimp only [bind, Except.bind]
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  exact ⟨_, rfl⟩
+
+/-- `hashToG2 msg dst` succeeds for every non-empty domain separation tag
+`dst.size ≠ 0` and returns a valid point on the BLS12-381 twist. -/
+theorem hashToG2_total {msg dst : ByteArray} (hdst : dst.size ≠ 0) :
+    ∃ P : G2, hashToG2 msg dst = .ok P ∧ G2.Valid P := by
+  obtain ⟨us, hus⟩ := hashToFieldFp2_two_ok hdst
+  obtain ⟨⟨x0, y0⟩, h0, _⟩ := simpleSwu_total us[0]!
+  obtain ⟨⟨x1, y1⟩, h1, _⟩ := simpleSwu_total us[1]!
+  have hok : ∃ P : G2, hashToG2 msg dst = .ok P := by
+    unfold hashToG2
+    rw [hus]
+    dsimp only [bind, Except.bind]
+    rw [h0]
+    dsimp only [bind, Except.bind]
+    rw [h1]
+    exact ⟨_, rfl⟩
+  rcases hok with ⟨P, hP⟩
+  exact ⟨P, hP, hashToG2_valid hP⟩
+
+/-- `hashToG2 msg dst` succeeds iff `dst.size ≠ 0`. -/
+theorem hashToG2_ok_iff {msg dst : ByteArray} :
+    (∃ P : G2, hashToG2 msg dst = .ok P) ↔ dst.size ≠ 0 := by
+  constructor
+  · rintro ⟨P, hP⟩ h0
+    unfold hashToG2 hashToFieldFp2 at hP
+    dsimp only at hP
+    rw [expandMessageXmd_empty_dst msg dst 256 h0] at hP
+    simp [Bind.bind, Except.bind] at hP
+  · intro hdst
+    obtain ⟨P, hP, _⟩ := hashToG2_total hdst
+    exact ⟨P, hP⟩
+
 end EthLib.Cryptography.Bls.HashToCurve
