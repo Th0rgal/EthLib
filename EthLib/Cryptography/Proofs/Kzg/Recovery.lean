@@ -598,4 +598,28 @@ theorem recoverCellsAndKzgProofs_badCellSize
   simp [recoverCellsAndKzgProofs, hlen, hmin, hmax, hbound, hasc, h]
   rfl
 
+/-- The recovery vanishing polynomial has no coefficient above its mathematical degree bound. -/
+theorem constructVanishingPolynomial_high_zero
+    {missing : Array CellIndex} {p : PolynomialCoeff}
+    (hp : constructVanishingPolynomial missing = .ok p)
+    (i : Nat) (hi : missing.size * FIELD_ELEMENTS_PER_CELL < i) : p[i]! = Fr.zero := by
+  simp only [constructVanishingPolynomial, bind, Except.bind, pure, Except.pure] at hp
+  split at hp
+  · cases hp
+  · rename_i hlt
+    split at hp
+    · cases hp
+    · rename_i q hq
+      injection hp with he
+      subst he
+      obtain ⟨hsz, _⟩ := size_and_leadingCoeff_vanishingPolynomialcoeff hq
+      simp only [Array.size_map] at hsz
+      rw [← Array.foldl_toList, Array.toList_range,
+        foldl_vanishing_extend_getElem!_all q q.size (by omega)]
+      rw [if_neg]
+      rintro ⟨hmod, hdiv⟩
+      have hc : FIELD_ELEMENTS_PER_CELL = 64 := rfl
+      rw [hc] at hi hmod hdiv
+      omega
+
 end EthLib.Cryptography.Kzg
