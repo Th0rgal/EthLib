@@ -56,6 +56,7 @@ import EthLib.Cryptography.Proofs.Bls.PairingEmbedding
 import EthLib.Cryptography.Proofs.Bls.CofactorSubgroupPreservation
 import EthLib.Cryptography.Proofs.Bls.CofactorGenerator
 import EthLib.Cryptography.Proofs.Bls.Signatures
+import EthLib.Cryptography.Proofs.Bls.CofactorEndomorphism
 
 /-!
 # `EthLib.Cryptography.Proofs.Bls`
