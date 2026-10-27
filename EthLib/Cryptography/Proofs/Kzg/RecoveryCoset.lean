@@ -1,4 +1,5 @@
 import EthLib.Cryptography.Proofs.Kzg.VanishingNonzero
+import EthLib.Cryptography.Proofs.Kzg.FftEvaluation
 
 namespace EthLib.Cryptography.Kzg
 open EthLib.Cryptography.Bls (Fr)
@@ -66,5 +67,21 @@ theorem constructVanishingPolynomial_recoveryCoset_ne_zero
   apply recoveryCoset_cellPower_ne_root i (BitReversal.reverseBits m CELLS_PER_EXT_BLOB)
   rw [← Bls.Fr.powNat_eq_pow]
   exact hm.symm
+
+/-- Every actual denominator array entry used in recovery is nonzero. -/
+theorem getElem!_recovery_denominator_ne_zero
+    {missing : Array CellIndex} {p : PolynomialCoeff}
+    (hp : constructVanishingPolynomial missing = .ok p)
+    (i : Nat) (hi : i < FIELD_ELEMENTS_PER_EXT_BLOB) :
+    (cosetFftField p (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) false)[i]! ≠ 0 := by
+  rw [getElem!_cosetFftField_eval (k := 13)
+    (ω := domainRoot FIELD_ELEMENTS_PER_EXT_BLOB)
+    (isPrimitiveRoot_domainRoot (Nat.dvd_of_mod_eq_zero (by decide))) p
+    (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB)
+    (size_constructVanishingPolynomial hp) (size_computeRootsOfUnity _)
+    (fun j hj => by
+      rw [getElem!_pos (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) j
+        (by rw [size_computeRootsOfUnity]; exact hj), getElem_computeRootsOfUnity]) i hi]
+  exact constructVanishingPolynomial_recoveryCoset_ne_zero hp i
 
 end EthLib.Cryptography.Kzg
