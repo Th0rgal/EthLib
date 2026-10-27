@@ -61,6 +61,8 @@ import EthLib.Cryptography.Proofs.Bls.PairingSignedG1
 import EthLib.Cryptography.Proofs.Bls.PairingMillerCovariance
 import EthLib.Cryptography.Proofs.Bls.PairingSignedG2
 import EthLib.Cryptography.Proofs.Bls.PairingNondegenerate
+import EthLib.Cryptography.Proofs.Bls.CofactorSubgroupLanding
+import EthLib.Cryptography.Proofs.Bls.G2SubgroupSpan
 
 /-!
 # `EthLib.Cryptography.Proofs.Bls`
