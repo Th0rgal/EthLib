@@ -59,4 +59,19 @@ theorem cosetFftField_inv_cosetFftField {k : Nat} {ω : Fr}
   rw [hc]
   exact fftField_inv_fftField hω vals roots hn hrs hroots
 
+/-- The actual extended-blob domain satisfies the hypotheses above. -/
+theorem cosetFftField_extended_roundtrip (vals : Array Fr)
+    (hn : vals.size = FIELD_ELEMENTS_PER_EXT_BLOB) :
+    cosetFftField
+      (cosetFftField vals (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) false)
+      (computeRootsOfUnity FIELD_ELEMENTS_PER_EXT_BLOB) true = vals := by
+  apply cosetFftField_cosetFftField_inv (k := 13)
+    (ω := domainRoot FIELD_ELEMENTS_PER_EXT_BLOB)
+  · exact isPrimitiveRoot_domainRoot (Nat.dvd_of_mod_eq_zero (by decide))
+  · exact hn
+  · exact size_computeRootsOfUnity _
+  · intro i hi
+    rw [getElem!_pos _ i (by rw [size_computeRootsOfUnity]; exact hi),
+      getElem_computeRootsOfUnity]
+
 end EthLib.Cryptography.Kzg
