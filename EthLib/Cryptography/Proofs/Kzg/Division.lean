@@ -266,4 +266,90 @@ theorem dividePolynomialcoeff_eval_identity {a b q : PolynomialCoeff}
   rw [Nat.sub_self, Fr.powNat_zero, hq] at hi
   exact final_identity _ _ _ _ hi
 
+
+private theorem divisionSubtract_leading_zero (a b : PolynomialCoeff)
+    (shift : Nat) (hb : 0 < b.size) (hfit : shift + b.size ≤ a.size)
+    (hlead : b[b.size-1]! ≠ 0) :
+    (divisionSubtract a b shift
+      (a[shift+b.size-1]! * b[b.size-1]!.inverse) b.size)[shift+b.size-1]! = 0 := by
+  have h := dividePolynomialcoeff_inner_leading_zero a b shift hb hfit hlead
+  dsimp only at h
+  rw [← Array.foldl_toList, Array.toList_range] at h
+  exact h
+
+/-- Each outer iteration clears its highest remaining coefficient, preserving
+all higher coefficients already cleared. -/
+theorem dividePolynomialcoeff_loop_high_zero (a b : PolynomialCoeff)
+    (hb : 0 < b.size) (hab : b.size ≤ a.size) (hlead : b[b.size-1]! ≠ 0)
+    (count : Nat) (hc : count ≤ a.size+1-b.size) :
+    ∀ j, j < a.size → a.size-count ≤ j →
+      (divisionLoopState a b count).1[j]! = 0 := by
+  induction count with
+  | zero => intro j hj hhigh; omega
+  | succ n ih =>
+    intro j hj hhigh
+    rw [divisionLoopState_succ]
+    dsimp only
+    rw [divisionLoopState_size]
+    let shift := a.size - 1 - n - (b.size-1)
+    have hfit : shift + b.size ≤ (divisionLoopState a b n).1.size := by
+      rw [divisionLoopState_size]
+      dsimp [shift]
+      omega
+    have htop : shift + b.size - 1 = a.size - 1 - n := by dsimp [shift]; omega
+    by_cases heq : j = a.size - 1 - n
+    · subst j
+      rw [← htop]
+      have hshift0 : shift + b.size - 1 - (b.size - 1) = shift := by omega
+      rw [hshift0]
+      exact divisionSubtract_leading_zero _ b shift hb hfit hlead
+    · change (divisionSubtract (divisionLoopState a b n).1 b shift
+        ((divisionLoopState a b n).1[a.size-1-n]! * b[b.size-1]!.inverse) b.size)[j]! = 0
+      rw [divisionSubtract_get _ _ _ _ _ _ (by rw [divisionLoopState_size]; exact hj)]
+      rw [if_neg (by dsimp [shift]; omega)]
+      exact ih (by omega) j hj (by omega)
+
+/-- The final mutable dividend has no coefficients at or above the divisor's
+leading index. This is the long-division remainder degree bound, stated
+without imposing a normalized array representation. -/
+theorem dividePolynomialcoeff_remainder_degree_bound (a b : PolynomialCoeff)
+    (hb : 0 < b.size) (hab : b.size ≤ a.size) (hlead : b[b.size-1]! ≠ 0)
+    (j : Nat) (hj : b.size-1 ≤ j) :
+    (divisionLoopState a b (a.size+1-b.size)).1[j]! = 0 := by
+  by_cases hja : j < a.size
+  · exact dividePolynomialcoeff_loop_high_zero a b hb hab hlead _ (Nat.le_refl _)
+      j hja (by omega)
+  · rw [getElem!_neg _ _ (by rw [divisionLoopState_size]; exact hja)]
+    rfl
+
+
+private theorem empty_quotient_identity {R : Type*} [CommRing R] (a b : R) :
+    a = 0*b+a := by ring
+
+/-- For a nonempty divisor with nonzero leading coefficient, a successful
+quotient has a remainder of strictly smaller coefficient degree and satisfies
+the evaluation identity at every field point. The witness is the final loop
+state (or the unchanged dividend when division has no iterations). -/
+theorem dividePolynomialcoeff_quotient_remainder_spec {a b q : PolynomialCoeff}
+    (hb : 0 < b.size) (hlead : b[b.size-1]! ≠ 0)
+    (h : dividePolynomialcoeff a b = .ok q) :
+    ∃ r : PolynomialCoeff,
+      (∀ x, evalPolyAt a x = evalPolyAt q x * evalPolyAt b x + evalPolyAt r x) ∧
+      (∀ j, b.size-1 ≤ j → r[j]! = 0) := by
+  by_cases hab : b.size ≤ a.size
+  · refine ⟨(divisionLoopState a b (a.size+1-b.size)).1, ?_, ?_⟩
+    · exact fun x => dividePolynomialcoeff_eval_identity hb hab h x
+    · exact fun j hj => dividePolynomialcoeff_remainder_degree_bound a b hb hab hlead j hj
+  · have hlt : a.size < b.size := by omega
+    rw [dividePolynomialcoeff_lt_size hlt] at h
+    have hq : q = #[] := (Except.ok.inj h).symm
+    subst q
+    refine ⟨a, ?_, ?_⟩
+    · intro x
+      change evalPolyAt a x = Fr.zero * evalPolyAt b x + evalPolyAt a x
+      exact empty_quotient_identity _ _
+    · intro j hj
+      rw [getElem!_neg _ _ (by omega)]
+      rfl
+
 end EthLib.Cryptography.Kzg
