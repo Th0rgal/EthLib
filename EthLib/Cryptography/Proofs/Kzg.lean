@@ -19,6 +19,7 @@ import EthLib.Cryptography.Proofs.Kzg.RecoveryDomain
 import EthLib.Cryptography.Proofs.Kzg.RecoveryFlatten
 import EthLib.Cryptography.Proofs.Kzg.RecoveryMasked
 import EthLib.Cryptography.Proofs.Kzg.RecoveryReconstruction
+import EthLib.Cryptography.Proofs.Kzg.RecoveryCapacity
 
 /-!
 # `EthLib.Cryptography.Proofs.Kzg`
