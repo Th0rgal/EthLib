@@ -76,4 +76,20 @@ theorem finalExponentiation_ne_zero {f : Fp12} (hf : f ≠ 0) :
   rw [finalExponentiation, Fp12.powNat_eq_pow]
   exact pow_ne_zero _ hf
 
+/-! The final exponentiation has no extra zero divisors: its output is zero
+exactly on the zero input.  This closes the zero-input side of the usual
+`r`-torsion statement without making any claim about Miller-loop
+non-vanishing. -/
+theorem finalExponentiation_eq_zero_iff {f : Fp12} :
+    finalExponentiation f = 0 ↔ f = 0 := by
+  constructor
+  · intro h
+    by_contra hf
+    exact (finalExponentiation_ne_zero hf) h
+  · intro h
+    subst f
+    rw [finalExponentiation, Fp12.powNat_eq_pow]
+    exact zero_pow (show finalExpExponent ≠ 0 by decide +kernel)
+
+
 end EthLib.Cryptography.Bls
