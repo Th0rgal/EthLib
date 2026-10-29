@@ -12,10 +12,9 @@ A subgroup that contains points of each prime order `q` has order divisible by e
 
 If that product exceeds half the group's size bound, the subgroup is the whole group.
 
-```text
-    h_2 * r  divides  |H|,   |H| <= |E'(Fp2)| <= 2 * p^2 + 1 < 2 * h_2 * r
-    ==>  |H| = h_2 * r = |E'(Fp2)|
-```
+1. `h_2 * r` divides `|H|`.
+2. `|H| <= |E'(Fp2)| <= 2 * p^2 + 1 < 2 * h_2 * r`.
+3. So `|H| = h_2 * r = |E'(Fp2)|`.
 -/
 
 namespace EthLib.Cryptography.Bls.CofactorSpan

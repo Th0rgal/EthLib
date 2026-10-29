@@ -12,11 +12,9 @@ Source: `RFC 9380 §8.8.2 and Appendix G.3`.
 
 The extension tower:
 
-```text
-    Fp2  = Fp[i]  / (i^2 + 1)
-    Fp6  = Fp2[v] / (v^3 - (1 + i))
-    Fp12 = Fp6[w] / (w^2 - v)
-```
+- `Fp2 = Fp[i] / (i^2 + 1)`
+- `Fp6 = Fp2[v] / (v^3 - (1 + i))`
+- `Fp12 = Fp6[w] / (w^2 - v)`
 
 The untwist sends `(x, y)` to `(x * w^(-2), y * w^(-3))`.
 
