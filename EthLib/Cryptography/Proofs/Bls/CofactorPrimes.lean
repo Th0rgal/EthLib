@@ -8,7 +8,9 @@ import Mathlib.Tactic.NormNum.Prime
 
 namespace EthLib.Cryptography.Bls.CofactorPrimes
 open EthLib.Cryptography
-set_option exponentiation.threshold 1024
+
+-- The largest certificates check bounds up to `2^449`, above the default threshold of `2^256`.
+set_option exponentiation.threshold 512
 
 private theorem pow_one_4920833 : ((3 : Nat) : ZMod 4920833) ^ (4920833 - 1) = 1 := by
   rw [PowMod.natCast_pow_eq_one_iff 4920833 24 3 (4920833 - 1) (by decide)]

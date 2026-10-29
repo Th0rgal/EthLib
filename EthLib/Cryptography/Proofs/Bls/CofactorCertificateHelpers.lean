@@ -3,11 +3,12 @@ import EthLib.Cryptography.Proofs.Bls.CofactorCardinality
 /-!
 # Proofs: Fuel-based ladder and certificate helpers for `G2` torsion witnesses
 
-Structural helpers `mulAux` and `clearAux` let the kernel evaluate large scalar multiplications and `clearCofactor` calls directly on concrete `G2` points.
+The kernel cannot unfold well-founded recursion, so these copies recurse on a fuel argument.
+
+Each copy is proved equal to the library function it mirrors.
 -/
 
 namespace EthLib.Cryptography.Bls.CofactorCertificate
-
 
 /-- Structurally recursive double-and-add ladder equivalent to `G2.mulNat` when `k < 2^fuel`. -/
 def mulAux : Nat → G2 → Nat → G2
@@ -35,7 +36,7 @@ theorem mulAux_eq (fuel : Nat) (p : G2) (k : Nat)
         omega
       rw [ite_eq_right h0, ite_eq_right h0, ih (G2.double p) (k / 2) h2]
 
-/-- Certifies `[n] * toPoint P = 0` from a closed `(mulAux fuel P n).isInfinity = true` computation. -/
+/-- Turns a kernel computation of `[n] * P = 0` into a fact about the curve group. -/
 theorem nsmul_zero_cert (P : G2) (hp : G2.Valid P) (n fuel : Nat)
     (hn : n < 2 ^ fuel) (hc : (mulAux fuel P n).isInfinity = true) :
     n • G2.toPoint P = 0 := by

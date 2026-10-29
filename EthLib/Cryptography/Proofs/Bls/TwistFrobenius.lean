@@ -10,15 +10,23 @@ import Mathlib.Tactic.FieldSimp
 
 Source: `RFC 9380 §8.8.2 and Appendix G.3`.
 
-The extension tower is `Fp2 = Fp[i] / (i^2 + 1)`, `Fp6 = Fp2[v] / (v^3 - (1 + i))`, and `Fp12 = Fp6[w] / (w^2 - v)`.
+The extension tower:
 
-Scaling `(x, y)` on `E' : y^2 = x^3 + 4*(1 + i)` by `(w^(-2), w^(-3))` embeds `E'(Fp2)` injectively into `E : y^2 = x^3 + 4` over `Fp12`.
+```text
+    Fp2  = Fp[i]  / (i^2 + 1)
+    Fp6  = Fp2[v] / (v^3 - (1 + i))
+    Fp12 = Fp6[w] / (w^2 - v)
+```
 
-After that untwist, `psi` agrees with the `p`-power Frobenius `(X, Y) -> (X^p, Y^p)` on `E(Fp12)`.
+The untwist sends `(x, y)` to `(x * w^(-2), y * w^(-3))`.
 
-Injectivity of the untwist transfers additivity from the `p`-Frobenius to `psi` on `G2.curve.toAffine.Point`.
+It embeds `E'(Fp2)` into `E : y^2 = x^3 + 4` over `Fp12`, and it is injective.
 
-Kernel evaluation on `G2.generator` also certifies the `psi` eigenvalue `-[|x|]` on the `G2` generator span.
+There, `psi` is the Frobenius map `(X, Y) -> (X^p, Y^p)`.
+
+The Frobenius map is a group homomorphism, so `psi` is one too.
+
+On the generator, `psi` acts as multiplication by the BLS parameter `x = -|x|`.
 -/
 
 namespace EthLib.Cryptography.Bls
@@ -27,7 +35,6 @@ namespace TwistFrobenius
 
 open WeierstrassCurve.Affine
 open HashToCurve
-
 
 /-! ## Finite-field cardinalities across the `Fp -> Fp2 -> Fp6 -> Fp12` tower -/
 
@@ -163,7 +170,7 @@ def ambientCurve : WeierstrassCurve.Affine Fp12 :=
     ambientCurve.Equation x y ↔ y ^ 2 = x ^ 3 + 4 := by
   simp [equation_iff, ambientCurve]
 
-/-- Every solution of `y^2 = x^3 + 4` over `Fp12` has nonzero gradient because `2 != 0` and `3 != 0` in characteristic `p`. -/
+/-- Every point of `y^2 = x^3 + 4` over `Fp12` is nonsingular, since `2` and `3` are nonzero mod `p`. -/
 theorem ambient_nonsingular {x y : Fp12} (h : y ^ 2 = x ^ 3 + 4) :
     ambientCurve.Nonsingular x y := by
   rw [nonsingular_iff', ambient_equation]
@@ -527,7 +534,7 @@ private theorem mulNatAux_eq (fuel : Nat) (p : G2) (k : Nat)
         omega
       rw [ite_eq_right h0, ite_eq_right h0, ih (G2.double p) (k / 2) h2]
 
-/-- Projective equality `psi(g_2) = [x] * g_2` (`x = -blsAbsX`), checked in the kernel on the 381-bit generator coordinates. -/
+/-- `psi(g_2) = [x] * g_2` for the BLS parameter `x`, checked in the kernel. -/
 theorem psi_generator_projectiveEq :
     G2.projectiveEq (psi G2.generator) (mulNegX G2.generator) = true := by
   unfold mulNegX

@@ -4,11 +4,11 @@ import Mathlib.GroupTheory.Index
 /-!
 # Proofs: Elementary cardinality bound for the `G2` twist curve
 
-Every finite point `(x, y)` on `E' : y^2 = x^3 + 4*(1 + i)` over `Fp2` satisfies `y^2 = x^3 + bTwist`.
+A finite point `(x, y)` on `E' : y^2 = x^3 + 4*(1 + i)` is fixed by `x` and the choice between `y` and `-y`.
 
-For each `x` in `Fp2` (`p^2` elements), at most two values of `y` solve that quadratic equation, and `0` adds one point at infinity.
+`Fp2` has `p^2` elements, and there is one point at infinity.
 
-Injecting `G2.curve.toAffine.Point` into `Option (Fp2 x Bool)` gives `#E'(Fp2) <= 2 * p^2 + 1` without assuming Hasse's theorem.
+So `#E'(Fp2) <= 2 * p^2 + 1`, with no appeal to Hasse's theorem.
 -/
 
 namespace EthLib.Cryptography.Bls.G2

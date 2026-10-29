@@ -6,13 +6,16 @@ import EthLib.Cryptography.Proofs.Bls.CofactorPointIndependent23
 /-!
 # Proofs: Independence of the `13`-torsion and `23`-torsion witness pairs on `G2`
 
-Checks in the kernel that `independent13` is outside `{[0..12] * q13}` and `independent23` is outside `{[0..22] * q23}` under `G2.projectiveEq`.
+The second `13`-torsion point is not a multiple of the first.
+
+The same holds for the two `23`-torsion points.
+
+The kernel checks every multiple `[0..12]` and `[0..22]`.
 -/
 
 namespace EthLib.Cryptography.Bls.CofactorCertificate
 
-
-/-- Certifies `toPoint Q != [n] * toPoint P` from a closed `G2.projectiveEq Q (mulAux fuel P n) = false` check. -/
+/-- Turns a kernel check of `Q != [n] * P` into a fact about the curve group. -/
 theorem not_nsmul_cert (P Q : G2) (hp : G2.Valid P) (hq : G2.Valid Q)
     (n fuel : Nat) (hn : n < 2 ^ fuel)
     (hc : G2.projectiveEq Q (mulAux fuel P n) = false) :

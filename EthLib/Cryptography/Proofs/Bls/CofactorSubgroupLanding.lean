@@ -10,11 +10,13 @@ import EthLib.Cryptography.Proofs.Bls.CofactorPointLarge
 
 Source: `RFC 9380 §8.8.2 and Appendix G.3` and `IRTF draft-irtf-cfrg-bls-signature-04`.
 
-Every valid point on the BLS12-381 twist is sent to the `r`-torsion subgroup by `clearCofactor`.
+`clearCofactor` sends every point on the twist into the subgroup of order `r`.
 
-Independently certified torsion points force the kernel of `[r] * cofactorHom` to equal the entire finite twist curve group using only the elementary bound `Nat.card E'(Fp2) <= 2 * p^2 + 1`.
+The torsion witnesses all lie in the kernel of `[r] * clearCofactor`.
 
-Combining `clearCofactor_inSubgroup` with `hashToG2_total` proves that `hashToG2 msg dst` always returns a valid `G2` point with `G2.inSubgroup P = true`.
+So that kernel is the whole twist, by the size bound `2 * p^2 + 1`.
+
+Hence hash to curve always returns a point in the subgroup of order `r`.
 -/
 
 namespace EthLib.Cryptography.Bls.HashToCurve
@@ -76,7 +78,7 @@ theorem cofactorHom_modulus_smul (P : G2.curve.toAffine.Point) :
   have hm : P ∈ landingKernel := by rw [landingKernel_eq_top]; trivial
   exact hm
 
-/-- `clearCofactor` sends every `G2.Valid` point into the subgroup accepted by `G2.inSubgroup` (`RFC 9380 Appendix G.3`). -/
+/-- Cofactor clearing lands in the subgroup of order `r` (RFC 9380 Appendix G.3). -/
 theorem clearCofactor_inSubgroup {P : G2} (hP : G2.Valid P) :
     G2.inSubgroup (clearCofactor P) = true := by
   apply (G2.inSubgroup_iff_modulus_smul_eq_zero (clearCofactor_valid hP)).mpr
@@ -95,7 +97,7 @@ theorem hashToG2_inSubgroup {msg dst : ByteArray} {P : G2}
     exact clearCofactor_inSubgroup (G2.valid_add
       (simpleSwu_isoMapG2_valid us[0]!) (simpleSwu_isoMapG2_valid us[1]!))
 
-/-- `hashToG2 msg dst` succeeds for all `msg` and `dst`, returning a `G2.Valid` point in the prime-order `G2` subgroup. -/
+/-- Hash to curve succeeds on every input and returns a valid point of order `r`. -/
 theorem hashToG2_total_inSubgroup (msg dst : ByteArray) :
     ∃ P : G2, hashToG2 msg dst = .ok P ∧ G2.Valid P ∧ G2.inSubgroup P = true := by
   obtain ⟨P, hok, hval⟩ := hashToG2_total msg dst

@@ -6,19 +6,15 @@ import EthLib.Cryptography.Proofs.Bls.G2Subgroup
 
 Source: `RFC 9380 Appendix G.3`.
 
-`psi2` equals two applications of `psi`, and three applications of `psi2` negate any valid twist point.
-
-Together with `TwistFrobenius.hom`, `clearCofactor` refines an additive endomorphism `cofactorHom` on `G2.curve.toAffine.Point`.
-
-`clearCofactor_inSubgroup_of_inSubgroup` shows `clearCofactor` preserves existing `r`-torsion points.
-
-That preservation step does not yet claim that `clearCofactor` maps arbitrary twist points into `r`-torsion.
+- Applying `psi` twice gives `psi2`.
+- Applying `psi2` three times negates a point.
+- `clearCofactor` is a group homomorphism on the twist, since `psi` is one.
+- `clearCofactor` keeps a point of order `r` in the subgroup of order `r`.
 -/
 
 namespace EthLib.Cryptography.Bls.HashToCurve
 
 open EthLib.Cryptography.Bls
-
 
 private def c1 : Fp2 := (Fp2.powNat ⟨Fp.one, Fp.one⟩ ((Fp.modulus - 1) / 3)).inverse
 private def c2 : Fp2 := (Fp2.powNat ⟨Fp.one, Fp.one⟩ ((Fp.modulus - 1) / 2)).inverse
@@ -279,7 +275,7 @@ theorem clearCofactor_inSubgroup_of_inSubgroup {P : G2} (hP : G2.Valid P)
     smul_comm Fr.modulus blsAbsX, h0, h1]
   simp
 
-/-- Additive endomorphism `2 * psi^2 - psi + (x^2 - x - 1) - x * psi` (`x = -blsAbsX`) implemented by `clearCofactor`. -/
+/-- The homomorphism `2 * psi^2 + (x - 1) * psi + (x^2 - x - 1)` computed by `clearCofactor`. -/
 noncomputable def cofactorHom : G2.curve.toAffine.Point →+ G2.curve.toAffine.Point :=
   TwistFrobenius.hom.comp TwistFrobenius.hom + TwistFrobenius.hom.comp TwistFrobenius.hom -
     TwistFrobenius.hom + (blsAbsX * blsAbsX + blsAbsX) • AddMonoidHom.id _ -

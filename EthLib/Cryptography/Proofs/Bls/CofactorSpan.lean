@@ -8,9 +8,14 @@ import Mathlib.Tactic.Ring
 /-!
 # Proofs: Finite-group torsion certificate helpers for the twist cofactor image
 
-The lemmas here do not assume that cofactor clearing lands in the prime-order subgroup.
+A subgroup that contains points of each prime order `q` has order divisible by every such `q`.
 
-Independently checked point-order witnesses in a subgroup force that subgroup to equal the entire finite curve group via the elementary `2 * p^2 + 1` bound.
+If that product exceeds half the group's size bound, the subgroup is the whole group.
+
+```text
+    h_2 * r  divides  |H|,   |H| <= |E'(Fp2)| <= 2 * p^2 + 1 < 2 * h_2 * r
+    ==>  |H| = h_2 * r = |E'(Fp2)|
+```
 -/
 
 namespace EthLib.Cryptography.Bls.CofactorSpan
@@ -25,7 +30,7 @@ theorem prime_dvd_card_of_annihilated {q : Nat} (hq : q.Prime)
   rw [← addOrderOf_eq_prime hP hne]
   exact addOrderOf_dvd_natCard P
 
-/-- Two `q`-torsion points with `P != 0` and `Q` outside `{[0..q-1] * P}` certify `q^2 | Nat.card G`. -/
+/-- Two independent points of prime order `q` show that `q^2` divides the group order. -/
 theorem prime_sq_dvd_card_of_independent {q : Nat} (hq : q.Prime)
     (P Q : G) (hP : q • P = 0) (hQ : q • Q = 0) (hne : P ≠ 0)
     (hind : ∀ i : Fin q, Q ≠ i.val • P) : q ^ 2 ∣ Nat.card G := by
