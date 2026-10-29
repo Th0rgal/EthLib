@@ -538,7 +538,7 @@ theorem sqrt_ok {a c : Fp2} (h : Fp2.sqrt a = .ok c) : c * c = a :=
 
 /-! ## Sign-bit flip and square-root completeness -/
 
-/-- Negating a nonzero element of `Fp2` flips its lexicographic sign bit per `draft-irtf-cfrg-pairing-friendly-curves-07, Appendix C`.
+/-- Negating a nonzero `Fp2` element flips its sign bit (`draft-irtf-cfrg-pairing-friendly-curves-07` Appendix C).
 
 When `c1 != 0`, the sign comes from `c1`, which is negated.
 

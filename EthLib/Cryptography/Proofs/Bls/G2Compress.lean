@@ -8,17 +8,21 @@ import EthLib.Cryptography.Proofs.IdLoops
 /-!
 # Proofs: 96-byte `G2` compressed serialization
 
-`G2` represents points on the twisted curve `E' : y^2 = x^3 + 4*(1 + i)` over `Fp2`.
+`G2` holds points on the twist `E' : y^2 = x^3 + 4*(1 + i)` over `Fp2`.
 
-`G2.projectiveEq` compares Jacobian triples as projective points without replacing `(p == q)` on `G2`.
+The format is `draft-irtf-cfrg-pairing-friendly-curves-07` Appendix C.
 
-The 96-byte compressed serialization follows `draft-irtf-cfrg-pairing-friendly-curves-07, Appendix C`:
+Section C.1 encodes a point, and Section C.2 decodes it.
 
-- Compressing a point on the twist and decompressing it recovers a projectively equal representative (`uncompress_compress`).
-- Every point returned by `G2.uncompress` lies on the twist (`uncompress_valid`, `isOnTwist_of_uncompress`).
-- Malformed sizes, flags, infinity encodings, and non-canonical field elements are rejected (`uncompress_size_ne`, `uncompress_uncompressed`, `uncompress_infinity_sign_set`, `uncompress_infinity_nonzero_tail`, `uncompress_noncanonical_c1`, `uncompress_noncanonical_c0`).
-- Re-compressing any decoded point yields the exact 96 input bytes (`compress_uncompress`), because `x^3 + 4*(1 + i)` has no root in `Fp2` (`cube_add_bTwist_ne_zero`).
-- Therefore two distinct byte strings never decompress to the same point (`uncompress_injective`).
+- Encoding then decoding gives back the same projective point.
+- Every decoded point lies on the twist.
+- Bad lengths, bad flags, bad infinity encodings and field elements `>= p` are rejected.
+- Decoding then encoding gives back the exact 96 input bytes.
+- So two different byte strings never decode to the same point.
+
+The last two facts need `y != 0` on the twist.
+
+That holds because `x^3 + 4*(1 + i)` has no root in `Fp2`.
 -/
 
 deriving instance DecidableEq for EthLib.Cryptography.Bls.G2
@@ -67,7 +71,7 @@ theorem projectiveEq_inf_iff {p q : G2} (hp : p.isInfinity = true) :
 
 /-! ## Compression and decompression -/
 
-/-- `fp2ToBytes` encodes `c1` followed by `c0` as `48 + 48 = 96` bytes per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.1`. -/
+/-- An `Fp2` element encodes as `c1` then `c0`, `48 + 48 = 96` bytes (Section C.1). -/
 @[simp] theorem size_fp2ToBytes (x : Fp2) : (G2.fp2ToBytes x).size = 96 := by
   unfold G2.fp2ToBytes
   rw [ByteArray.size_append, Fp.size_toBytesBE, Fp.size_toBytesBE]
@@ -81,7 +85,7 @@ private theorem ba_get!_append_left {a b : ByteArray} {i : Nat} (hi : i < a.size
     exact Nat.lt_of_lt_of_le hi (Nat.le_add_right _ _)
   rw [getElem!_pos _ i hi', getElem!_pos a.data i hi, Array.getElem_append_left hi]
 
-/-- The leading byte of `fp2ToBytes x` is below `0x20`, leaving the top three bits clear for the serialization flags. -/
+/-- The first byte is below `0x20`, so its top three bits are free for the flags. -/
 theorem fp2ToBytes_head_lt (x : Fp2) : ((fp2ToBytes x).get! 0).toNat < 0x20 := by
   unfold fp2ToBytes
   rw [ba_get!_append_left (by rw [Fp.size_toBytesBE]; decide)]
@@ -151,7 +155,7 @@ private theorem compress_noninf {p : G2} (hinf : ¬ p.isInfinity = true)
 private theorem ba_size_set! (b : ByteArray) (j : Nat) (v : UInt8) :
     (b.set! j v).size = b.size := Array.size_setIfInBounds
 
-/-- `G2.compress` always produces a 96-byte buffer per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.1`. -/
+/-- Compression always gives 96 bytes (Section C.1). -/
 theorem size_compress (p : G2) : (G2.compress p).size = 96 := by
   by_cases h : p.isInfinity = true
   · rw [compress_inf h]
@@ -163,7 +167,7 @@ theorem size_compress (p : G2) : (G2.compress p).size = 96 := by
     · rw [ite_eq_left hs, ba_size_set!, ba_size_set!, size_fp2ToBytes]
     · rw [ite_eq_right hs, ba_size_set!, size_fp2ToBytes]
 
-/-- Decompressing the canonical 96-byte infinity encoding yields `G2.zero`, checked in the kernel. -/
+/-- The 96-byte infinity encoding decodes to the zero point. -/
 theorem uncompress_infinityBytes : G2.uncompress G2.infinityBytes = .ok G2.zero := by
   decide +kernel
 
@@ -218,13 +222,13 @@ private theorem tailAllZero_ok (b : ByteArray)
   intro i hi1 hi2
   exact (foldl_allZero b 1 (b.size - 1) true h).2 i hi1 (by omega)
 
-/-- `G2.uncompress` rejects any input whose length is not 96 bytes per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects any input that is not 96 bytes long (Section C.2). -/
 theorem uncompress_size_ne {bytes : ByteArray} (h : bytes.size ≠ 96) :
     G2.uncompress bytes = .error .invalidG2Point := by
   unfold G2.uncompress
   simp [h]
 
-/-- `G2.uncompress` rejects a 96-byte input whose compression flag (`0x80`) is clear per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects an input whose compression flag `0x80` is clear (Section C.2). -/
 theorem uncompress_uncompressed {bytes : ByteArray} (hsz : bytes.size = 96)
     (h : (bytes.get! 0 &&& 0x80) = 0) :
     G2.uncompress bytes = .error .invalidG2Point := by
@@ -237,7 +241,7 @@ private theorem head_e0_flags (head : UInt8) (h : (head &&& 0xe0) = 0xe0) :
   -- Check all 256 byte values in the kernel.
   rcases head with ⟨⟨i⟩⟩; revert i h; decide
 
-/-- `G2.uncompress` rejects a 96-byte infinity input that also sets the sign bit (`(head &&& 0xe0) = 0xe0`) per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects an infinity input that also sets the sign bit `0x20` (Section C.2). -/
 theorem uncompress_infinity_sign_set {bytes : ByteArray} (hsz : bytes.size = 96)
     (h : (bytes.get! 0 &&& 0xe0) = 0xe0) :
     G2.uncompress bytes = .error .invalidG2Point := by
@@ -252,7 +256,7 @@ private theorem head_c0_flags (head : UInt8) (h : (head &&& 0xc0) = 0xc0) :
   -- Check all 256 byte values in the kernel.
   rcases head with ⟨⟨i⟩⟩; revert i h; decide
 
-/-- `G2.uncompress` rejects a 96-byte infinity input (`(head &&& 0xc0) = 0xc0`) that has any nonzero trailing byte per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects an infinity input with a nonzero byte after the first (Section C.2). -/
 theorem uncompress_infinity_nonzero_tail {bytes : ByteArray} (hsz : bytes.size = 96)
     (hc0 : (bytes.get! 0 &&& 0xc0) = 0xc0)
     {i : Nat} (hi1 : 1 ≤ i) (hi96 : i < 96) (hne : bytes.get! i ≠ 0) :
@@ -286,7 +290,7 @@ theorem uncompress_infinity_nonzero_tail {bytes : ByteArray} (hsz : bytes.size =
     simp
   exact ite_eq_left hcond
 
-/-- `G2.uncompress` rejects a finite 96-byte input whose `c1` slice fails `Fp.fromBytesBE` per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects a finite input whose `c1` bytes are not a canonical `Fp` element (Section C.2). -/
 theorem uncompress_noncanonical_c1 {bytes : ByteArray} {e : BlsError}
     (hsz : bytes.size = 96)
     (hc : (bytes.get! 0 &&& 0x80) ≠ 0)
@@ -300,7 +304,7 @@ theorem uncompress_noncanonical_c1 {bytes : ByteArray} {e : BlsError}
   rw [ite_eq_right (by rw [decide_eq_true hc]; decide),
       ite_eq_right (by rw [hi]; decide), herr]
 
-/-- `G2.uncompress` rejects a finite 96-byte input whose `c0` slice fails `Fp.fromBytesBE` per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`. -/
+/-- Decoding rejects a finite input whose `c0` bytes are not a canonical `Fp` element (Section C.2). -/
 theorem uncompress_noncanonical_c0 {bytes : ByteArray} {e : BlsError}
     (hsz : bytes.size = 96)
     (hc : (bytes.get! 0 &&& 0x80) ≠ 0)
@@ -335,9 +339,11 @@ private theorem sq_select_fp2 (yPos : Fp2) (P : Prop) [Decidable P] :
   · rfl
   · exact neg_mul_neg yPos yPos
 
-/-- Every point accepted by `G2.uncompress` is either `G2.zero` or a finite point on the twist with `z = 1`.
+/-- A decoded point is either infinity or a point on the twist with `z = 1`.
 
-Decompression checks curve membership per `draft-irtf-cfrg-pairing-friendly-curves-07, Section C.2`, not subgroup membership.
+Decoding checks that the point is on the curve (Section C.2).
+
+It does not check that the point is in the subgroup of order `r`.
 -/
 theorem uncompress_valid {bytes : ByteArray} {p : G2}
     (h : G2.uncompress bytes = .ok p) :
@@ -477,7 +483,7 @@ private theorem b0_neg_m (B0 : UInt8) (hb0 : B0 < 0x20) :
 
 /-- `G2.compress p` equals `G2.infinityBytes` if and only if `p` is at infinity.
 
-A finite point has `fp2ToBytes xa` head byte below `0x20`, so bit `0x40` stays clear, whereas `infinityBytes` sets `0x40`.
+A finite point keeps the infinity flag `0x40` clear, since its first byte is below `0x20`.
 -/
 theorem compress_eq_infinityBytes_iff (p : G2) :
     G2.compress p = G2.infinityBytes ↔ p.isInfinity = true := by
@@ -547,7 +553,7 @@ private theorem yeq_fp2 (y z w : Fp2) (hw : z * w = 1) :
     y * (w * w * w) * (z * z * z) = y * (1 * 1 * 1) := by
   linear_combination y * ((z * w) ^ 2 + z * w + 1) * hw
 
-/-- Embedding the affine coordinates of a finite point at `z = 1` gives a projectively equal triple. -/
+/-- A finite point equals its affine form with `z = 1`, as a projective point. -/
 theorem projectiveEq_toAffine {p : G2} (hinf : ¬ p.isInfinity = true) :
     projectiveEq ⟨(p.toAffine).1, (p.toAffine).2, Fp2.one⟩ p = true := by
   have hpz : ¬ p.z.isZero = true := hinf
@@ -606,7 +612,7 @@ private theorem uncompress_of_facts {xa ya yPos : Fp2} {cb : ByteArray}
   simp only [show (⟨xa.c0, xa.c1⟩ : Fp2) = xa from Fp2.ext rfl rfl, hsqrt]
   rw [sign_recovery_fp2' hysq hsg]
 
-/-- Compressing and decompressing a finite point on the twist recovers its `z = 1` affine representative. -/
+/-- A finite point on the twist decodes back to its affine form with `z = 1`. -/
 theorem uncompress_compress_noninf {p : G2} (h : G2.isOnTwist p = true)
     (hinf : ¬ p.isInfinity = true) :
     G2.uncompress (G2.compress p) = .ok ⟨(p.toAffine).1, (p.toAffine).2, Fp2.one⟩ := by
@@ -660,11 +666,11 @@ theorem uncompress_compress_noninf {p : G2} (h : G2.isOnTwist p = true)
         exact b0_neg_m B0 hb0
       · rw [ba_get!_set!_ne _ _ hi0, hother i hi0]
 
-/-- Compression round-trip per `draft-irtf-cfrg-pairing-friendly-curves-07, Sections C.1-C.2` and `draft-irtf-cfrg-bls-signature-04, Section 1.3 and Appendix A`.
+/-- Encoding then decoding a twist point gives back the same projective point (C.1, C.2).
 
-For any point `p` on the twist, `G2.compress` followed by `G2.uncompress` succeeds and returns a projectively equal point.
+Infinity decodes to the zero triple.
 
-Decompression rebuilds `G2.zero` for infinity and the `z = 1` affine representative for finite points.
+A finite point decodes to its affine form with `z = 1`.
 -/
 theorem uncompress_compress {p : G2} (h : G2.isOnTwist p = true) :
     ∃ q, G2.uncompress (G2.compress p) = .ok q ∧ projectiveEq q p = true := by
@@ -675,7 +681,7 @@ theorem uncompress_compress {p : G2} (h : G2.isOnTwist p = true) :
   · exact ⟨⟨(p.toAffine).1, (p.toAffine).2, Fp2.one⟩,
       uncompress_compress_noninf h hinf, projectiveEq_toAffine hinf⟩
 
-/-- For a point on the twist that already has `z = 1`, `G2.uncompress (G2.compress p)` recovers `p` structurally. -/
+/-- A point on the twist with `z = 1` comes back as the exact same triple. -/
 theorem uncompress_compress_of_z_one {p : G2} (hz : p.z = Fp2.one)
     (h : G2.isOnTwist p = true) :
     G2.uncompress (G2.compress p) = .ok p := by
@@ -749,9 +755,7 @@ private theorem bool_eq_true_of_not_eq_false {ok : Bool} (h : (!ok) = false) :
     ok = true := by
   cases ok <;> first | rfl | contradiction
 
-/-- Canonical decompression round-trip per `draft-irtf-cfrg-pairing-friendly-curves-07, Sections C.1-C.2` and `draft-irtf-cfrg-bls-signature-04, Section 1.3 and Appendix A`.
-
-Re-compressing any point returned by `G2.uncompress` yields the exact 96-byte input buffer.
+/-- Decoding then encoding gives back the exact 96 input bytes (C.1, C.2).
 
 ```text
     infinity:   [ 0xc0 | 95 zero bytes ]                      checked byte by byte
@@ -856,11 +860,11 @@ theorem compress_uncompress {b : ByteArray} {q : G2}
                 rw [ite_eq_right hs] at hrec
                 rw [ite_eq_right hsy, hbase, hrec, ba_set!_get!_self b h0lt]
 
-/-- Non-malleability of `G2` decompression per `draft-irtf-cfrg-pairing-friendly-curves-07, Sections C.1-C.2` and `draft-irtf-cfrg-bls-signature-04, Section 1.3 and Appendix A`.
+/-- Two byte strings that decode to the same point are equal.
 
-Two byte strings that decode to the same point are equal.
+So each point on the twist has at most one 96-byte encoding.
 
-Every point on the twist `E'` (and in particular every valid `G2` signature) therefore has at most one 96-byte compressed encoding.
+In particular, a `G2` signature cannot be re-encoded into a second valid form.
 -/
 theorem uncompress_injective {b₁ b₂ : ByteArray} {q : G2}
     (h₁ : G2.uncompress b₁ = .ok q) (h₂ : G2.uncompress b₂ = .ok q) : b₁ = b₂ := by
