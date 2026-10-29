@@ -96,8 +96,6 @@ private theorem sq_ite_neg (P : Prop) [Decidable P] (y : Fp2) :
 section SwuComplete
 open scoped EthLib.Cryptography.Bls.Fp
 
-set_option maxRecDepth 4000
-
 private theorem sq_pm_zmod {s n : ZMod Fp.modulus} (h : s * s = n * n) :
     s = n ∨ s = -n := by
   have hfac : (s - n) * (s + n) = 0 := by linear_combination h

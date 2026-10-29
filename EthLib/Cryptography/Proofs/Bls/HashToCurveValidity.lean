@@ -16,8 +16,6 @@ namespace EthLib.Cryptography.Bls.HashToCurve
 
 open EthLib.Cryptography.Bls
 
-set_option maxRecDepth 8000
-set_option maxHeartbeats 1600000
 
 -- Definitionally equal to `c1Psi`, `c2Psi`, `c1Psi2`, checked via `change` in `psi_valid` and `psi2_valid`.
 private def cp1 : Fp2 := (Fp2.powNat ⟨Fp.one, Fp.one⟩ ((Fp.modulus - 1) / 3)).inverse

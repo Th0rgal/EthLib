@@ -24,7 +24,6 @@ namespace EthLib.Cryptography.Bls.HashToCurve
 open EthLib.Cryptography.Bls
 
 set_option maxRecDepth 8000
-set_option maxHeartbeats 1600000
 
 local notation "I" => Fp2.i
 
